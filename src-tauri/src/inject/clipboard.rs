@@ -14,7 +14,7 @@ use anyhow::Result;
 use arboard::Clipboard;
 use enigo::{Direction, Keyboard, Settings};
 use parking_lot::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[cfg(target_os = "macos")]
 const PASTE_KEY: enigo::Key = enigo::Key::Meta;
@@ -43,6 +43,20 @@ pub fn paste_text(text: &str) -> Result<()> {
     let sanitized = strip_control_chars(text);
     if sanitized.is_empty() {
         anyhow::bail!("paste payload is empty after control-char stripping");
+    }
+
+    // Simple dedupe: if the exact same text was injected very recently,
+    // skip to avoid accidental double-paste from race / button / mode edge.
+    static LAST_PASTE: Mutex<Option<(String, Instant)>> = Mutex::new(None);
+    {
+        let mut last = LAST_PASTE.lock();
+        if let Some((prev, when)) = &*last {
+            if prev == &sanitized && when.elapsed() < Duration::from_millis(800) {
+                log::info!("skipping duplicate paste (same text <800ms ago)");
+                return Ok(());
+            }
+        }
+        *last = Some((sanitized.clone(), Instant::now()));
     }
 
     // Hold the guard for the whole sequence. The restore happens on a

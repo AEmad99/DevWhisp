@@ -454,7 +454,7 @@
   // preserved and we surface the error inline.
 
   async function pickHotkey(spec: string) {
-    if (spec === currentHotkey || hotkeySaving !== null) return;
+    if (hotkeySaving !== null) return;
     hotkeyError = null;
     hotkeySaving = spec;
     try {
@@ -606,7 +606,7 @@
   <section class="card" id="sec-recording">
     <h2>Recording</h2>
 
-    <div class="row row-top">
+    <div class="row row-top row-hotkey">
       <div class="row-main">
         <div class="row-title">Hotkey</div>
         <div class="row-sub">
@@ -615,7 +615,7 @@
           in toggle mode) to talk.
         </div>
       </div>
-      <div class="row-ctl" style="flex-direction: column; align-items: stretch; gap: 8px; min-width: 320px;">
+      <div class="row-ctl">
         <div class="hotkey-picker" role="radiogroup" aria-label="Recording hotkey">
           {#if predefinedHotkeys.length === 0}
             <div class="muted small">Loading…</div>
@@ -1104,22 +1104,21 @@
     top: 0;
     z-index: 5;
     display: flex;
-    gap: 6px;
+    gap: 4px;
     flex-wrap: wrap;
-    padding: 8px 6px;
+    padding: 6px 4px;
     margin: 0 -6px;
-    background: rgba(10, 7, 18, 0.72);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: var(--bg);
     border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   }
   .sec-chip {
     background: var(--card);
     border: 1px solid var(--border);
     color: var(--muted);
-    padding: 5px 13px;
+    padding: 4px 10px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     font-family: inherit;
     cursor: pointer;
@@ -1133,7 +1132,10 @@
     border-radius: var(--r-lg);
     padding: 18px 22px;
     box-shadow: var(--shadow-1);
-    scroll-margin-top: 60px;
+    scroll-margin-top: 120px;
+  }
+  .settings > .card:first-of-type {
+    margin-top: 8px;
   }
 
   h2 {
@@ -1163,9 +1165,33 @@
   .row.row-top { align-items: flex-start; }
   .row-main { flex: 1; min-width: 0; }
   .row-title { color: var(--text); font-size: 14px; font-weight: 500; }
-  .row-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .row-sub { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
   .row-sub.mono { font-family: ui-monospace, "JetBrains Mono", monospace; word-break: break-all; }
   .row-ctl { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  /* Hotkey row: always stack description above the picker list.
+     This guarantees good layout at *any* window size (no side-by-side squeeze
+     that squishes text to 1-char lines or causes overlap on minimized views).
+     On wide screens the list simply uses the full card width below the label. */
+  .row.row-hotkey {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .row.row-hotkey .row-main {
+    /* gap from .row provides separation to the list below */
+  }
+  .row.row-hotkey .row-ctl {
+    display: block;
+    width: 100%;
+  }
+  .row.row-hotkey .hotkey-picker {
+    width: 100%;
+    max-height: 220px;
+    align-items: center; /* center the choice buttons for balanced look on wide windows; still full-width text above */
+  }
+  .row.row-hotkey .hotkey-option {
+    max-width: 520px; /* keep individual options readable even on ultra-wide windows */
+  }
   .row-slider { gap: 12px; }
   .row-slider input[type='range'] { width: 160px; }
   .row-error {
@@ -1333,7 +1359,7 @@
     border: 1px solid var(--border);
     color: var(--text);
     border-radius: 10px;
-    padding: 9px 12px;
+    padding: 8px 10px;
     font-family: inherit;
     text-align: left;
     cursor: pointer;
@@ -1342,6 +1368,8 @@
     align-items: center;
     gap: 10px;
     transition: border-color 150ms ease, background 150ms ease, transform 80ms ease;
+    width: 100%;
+    box-sizing: border-box;
   }
   .hotkey-option:hover:not(:disabled) {
     border-color: var(--accent-soft, var(--accent));
@@ -1358,7 +1386,8 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    min-width: 130px;
+    min-width: 80px;
+    flex-shrink: 0;
   }
   .hotkey-option-plus {
     color: var(--muted);
@@ -1367,8 +1396,13 @@
   }
   .hotkey-option-desc {
     color: var(--muted);
-    font-size: 12px;
-    line-height: 1.3;
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
   .hotkey-option-state {
     color: var(--accent);

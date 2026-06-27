@@ -51,6 +51,11 @@ static CURRENT_SHORTCUT: Lazy<Mutex<Shortcut>> = Lazy::new(|| {
     )
 });
 
+/// Whether we have ever successfully performed an OS-level registration.
+/// Used to avoid spurious "unregister" warnings on the very first startup
+/// (the Lazy CURRENT_SHORTCUT has a struct but no OS binding exists yet).
+static EVER_REGISTERED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
+
 /// Shared, long-lived tokio runtime used for STT calls from synchronous
 /// threads (the transcription worker spawned by `on_release`). Building a
 /// fresh runtime per transcription paid ~5-15 ms of construction overhead
@@ -124,14 +129,13 @@ pub fn set_shortcut<R: Runtime>(app: &AppHandle<R>, spec: &str) -> Result<String
 
 fn register_parsed<R: Runtime>(app: &AppHandle<R>, new: Shortcut, spec: &str) -> Result<()> {
     let old = *CURRENT_SHORTCUT.lock();
-    if old == new {
-        log::info!("hotkey unchanged ({spec}); skipping re-registration");
-        return Ok(());
-    }
-    // Unregister old first so the same physical hotkey can move between
-    // different modifier combos (e.g. Ctrl+Shift+Space -> Ctrl+Alt+F9).
-    if let Err(e) = app.global_shortcut().unregister(old) {
-        log::warn!("failed to unregister previous hotkey: {e}");
+    // Unregister the previous only if we actually registered something before.
+    // On the absolute first call (startup) the Lazy holds a struct but the OS
+    // has nothing yet — attempting unregister would just warn.
+    if *EVER_REGISTERED.lock() {
+        if let Err(e) = app.global_shortcut().unregister(old) {
+            log::warn!("failed to unregister previous hotkey: {e}");
+        }
     }
     app.global_shortcut()
         .on_shortcut(new, move |_app, _scut, event| {
@@ -144,6 +148,7 @@ fn register_parsed<R: Runtime>(app: &AppHandle<R>, new: Shortcut, spec: &str) ->
         })
         .map_err(|e| anyhow!("failed to register hotkey '{spec}': {e}"))?;
     *CURRENT_SHORTCUT.lock() = new;
+    *EVER_REGISTERED.lock() = true;
     log::info!("hotkey registered: {spec}");
     Ok(())
 }
@@ -456,12 +461,7 @@ struct PillState {
 }
 
 /// Payload for live (or final) partial transcripts shown in the pill.
-#[derive(Debug, Clone, Serialize)]
-struct PartialTranscript {
-    text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    is_final: Option<bool>,
-}
+
 
 fn emit_state<R: Runtime>(app: &AppHandle<R>, state: &'static str, message: Option<String>) {
     let payload = PillState { state, message };
@@ -477,20 +477,7 @@ fn emit_state<R: Runtime>(app: &AppHandle<R>, state: &'static str, message: Opti
     }
 }
 
-fn emit_partial_transcript<R: Runtime>(app: &AppHandle<R>, text: &str, is_final: bool) {
-    let payload = PartialTranscript {
-        text: text.to_string(),
-        is_final: if is_final { Some(true) } else { None },
-    };
-    // Target pill window when present (same pattern as pill-state).
-    if let Some(window) = app.get_webview_window(crate::window::pill_window::PILL_LABEL) {
-        if let Err(e) = window.emit("partial-transcript", payload) {
-            log::warn!("failed to emit partial-transcript to pill window: {e}");
-        }
-    } else if let Err(e) = app.emit("partial-transcript", payload) {
-        log::warn!("failed to emit partial-transcript globally: {e}");
-    }
-}
+
 
 /// Called when the push-to-talk hotkey is first pressed down.
 pub fn on_press<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
@@ -555,39 +542,45 @@ pub(crate) fn transcribe_and_inject<R: Runtime>(app: AppHandle<R>, samples: Vec<
                     log::warn!("history insert failed: {e:?}");
                 }
 
-                // Emit the final transcript so the pill can show live quick-edit UI.
-                emit_partial_transcript(&app_for_thread, &formatted, true);
+                // Auto-inject AFTER hiding the pill (if visible). This returns
+                // focus to whatever the user last clicked so the paste lands in
+                // the intended text field/app. The pill is re-shown briefly for
+                // feedback. (No transcript text is ever rendered inside the pill.)
+                if let Some(pw) = app_for_thread.get_webview_window(crate::window::pill_window::PILL_LABEL) {
+                    let _ = pw.hide();
+                }
+                std::thread::sleep(std::time::Duration::from_millis(70));
 
-                // Auto-inject the formatted text into the focused app via the
-                // clipboard. We do this unconditionally — previously we gated
-                // on `pill_visible`, but the pill is created visible at
-                // startup (so `pill_visible` was always true) and the
-                // editable-preview UX was blocking actual paste, leaving the
-                // user staring at a pill with the recognized text but
-                // nothing appearing in their target app.
-                //
-                // The pill still shows the success state with Confirm/Edit &
-                // Paste buttons so the user can manually re-paste from the
-                // pill if they need to correct a misrecognition (the
-                // clipboard contains the same text, so manual re-paste just
-                // reuses it).
-                if let Err(e) = crate::inject::inject(&formatted) {
-                    log::error!("inject failed: {e:?}");
+                let pasted = crate::inject::inject(&formatted).is_ok();
+                if !pasted {
+                    log::error!("inject failed");
                     emit_state(
                         &app_for_thread,
                         "error",
                         Some("Copied to clipboard (couldn't auto-paste)".to_string()),
                     );
-                    return;
                 }
 
-                // Show the success state (pill will present editable transcript + paste buttons).
-                emit_state(&app_for_thread, "success", None);
-                let app_for_reset = app_for_thread.clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_millis(1500));
-                    emit_state(&app_for_reset, "idle", None);
-                });
+                // Re-show pill for the brief success/error indicator feedback.
+                if let Some(pw) = app_for_thread.get_webview_window(crate::window::pill_window::PILL_LABEL) {
+                    let _ = pw.show();
+                }
+
+                if pasted {
+                    emit_state(&app_for_thread, "success", None);
+                    let app_for_reset = app_for_thread.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(1500));
+                        emit_state(&app_for_reset, "idle", None);
+                    });
+                } else {
+                    // brief error, then idle
+                    let app_for_reset = app_for_thread.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(1200));
+                        emit_state(&app_for_reset, "idle", None);
+                    });
+                }
             }
             Ok(_) => {
                 log::info!("transcription empty, nothing to inject");

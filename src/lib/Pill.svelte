@@ -13,7 +13,7 @@
    * The pill also shows the brand mark (voice-wave arcs + source node) so it
    * reads as DevWhisp at any size, matching the family DNA.
    */
-	  import { onMount, onDestroy, tick } from 'svelte';
+	  import { onMount, onDestroy } from 'svelte';
 	  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	  import { getCurrentWindow } from '@tauri-apps/api/window';
 	  import { invoke } from '@tauri-apps/api/core';
@@ -30,11 +30,6 @@
     level: number;
   }
 
-  interface PartialTranscriptPayload {
-    text: string;
-    is_final?: boolean;
-  }
-
   interface PillSizePayload {
     width: number;
     height: number;
@@ -42,19 +37,12 @@
 
   /** Samples along the listening sound-wave path. */
   const WAVE_SAMPLES = 28;
-  const WAVE_WIDTH = 132;
-  const WAVE_HEIGHT = 30;
+  const WAVE_WIDTH = 96;
+  const WAVE_HEIGHT = 28;
 
   let pillState = $state<PillStateValue>('idle');
   let errorMessage = $state<string | null>(null);
   let audioLevel = $state(0);
-
-  /** Live partial (or final) transcript text. Updated by events + simulation. */
-  let transcript = $state<string>('');
-  /** Editable copy shown in quick-edit success UI. */
-  let editableTranscript = $state<string>('');
-  /** Snapshot of the received final (for "Confirm Paste" vs edited). */
-  let originalFinal = $state<string>('');
 
   /** Target level from the backend; displayLevel eases toward it each frame. */
   let targetLevel = 0;
@@ -65,16 +53,12 @@
   let pillW = $state<number>(200);
   let pillH = $state<number>(48);
 
-  /** Simulation timer for live partials during listening (when no real partials yet). */
-  let simTimer: number | null = null;
-
   /** Smoothed amplitudes that drive the live sound wave. */
   let waveSamples = $state<number[]>(Array(WAVE_SAMPLES).fill(0.08));
 
   let unlistenLevel: UnlistenFn | null = null;
   let unlistenState: UnlistenFn | null = null;
   let unlistenStyle: UnlistenFn | null = null;
-  let unlistenPartial: UnlistenFn | null = null;
   let unlistenSize: UnlistenFn | null = null;
 
   // ---- Pill style customization (persisted to localStorage) ----------
@@ -197,46 +181,7 @@
     waveSamples = Array(WAVE_SAMPLES).fill(0.08);
   }
 
-  /** Canned phrases for realistic-looking live partial simulation. */
-  const SIM_PHRASES = [
-    'hey there how are you',
-    'testing voice input now',
-    'quick brown fox jumps',
-    'this is a live transcript',
-    'hello can you hear me',
-    'setting up the new feature',
-  ];
 
-  function stopSim() {
-    if (simTimer !== null) {
-      clearInterval(simTimer);
-      simTimer = null;
-    }
-  }
-
-  /** Start a lightweight progressive reveal so the pill feels alive while listening.
-   *  Real final transcript from backend will replace it instantly. */
-  function startSim() {
-    stopSim();
-    transcript = '';
-    const base = SIM_PHRASES[Math.floor(Math.random() * SIM_PHRASES.length)];
-    const phrase = base + ' ';
-    let i = 0;
-    simTimer = window.setInterval(() => {
-      if (pillState !== 'listening') {
-        stopSim();
-        return;
-      }
-      i += 1 + Math.floor(Math.random() * 2);
-      const next = phrase.slice(0, Math.min(i, phrase.length));
-      // subtle jitter so it feels streaming
-      transcript = next + (Math.random() > 0.7 ? '…' : '');
-      if (i > phrase.length + 6) {
-        // end this sim cycle; a new one could restart but final will arrive
-        stopSim();
-      }
-    }, 135);
-  }
 
   // Drag state
   let dragStartX = 0;
@@ -244,9 +189,6 @@
   let isDragging = $state(false);
   let didDrag = $state(false);
   let dragUnlisten: (() => void) | null = null;
-
-  /** Bound ref to the quick-edit textarea for auto-focus. */
-  let transcriptTa = $state<HTMLTextAreaElement | null>(null);
 
   /**
    * Begin dragging the pill. We track pointer movement at the window
@@ -321,76 +263,6 @@
     void invoke('hide_pill').catch(() => undefined);
   }
 
-  /** Auto-grow the textarea height a little for multi-line edits (capped). */
-  function autoResizeTa(e?: Event) {
-    const ta = (e?.currentTarget as HTMLTextAreaElement) || transcriptTa;
-    if (!ta) return;
-    ta.style.height = 'auto';
-    const h = Math.min(ta.scrollHeight, 68);
-    ta.style.height = h + 'px';
-  }
-
-  /** Keyboard niceties inside the tiny editor: Enter = paste, Esc = cancel. */
-  function onTaKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      // default to edit-and-paste on Enter (user is editing)
-      editAndPaste();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      cancelReview();
-    }
-  }
-
-  async function confirmPaste() {
-    // Use the original final (user may not have touched the field yet)
-    const text = (originalFinal || editableTranscript || transcript || '').trim();
-    await doPaste(text);
-  }
-
-  async function editAndPaste() {
-    const text = (editableTranscript || originalFinal || transcript || '').trim();
-    await doPaste(text);
-  }
-
-  async function doPaste(text: string) {
-    if (!text) {
-      cancelReview();
-      return;
-    }
-    try {
-      // Hide the pill FIRST so focus returns to the previously-focused
-      // target app. Otherwise Ctrl+V goes into the pill's textarea
-      // instead of where the user wants the text.
-      try {
-        await pillWindow.hide();
-      } catch (e) {
-        console.warn('pill hide before reinject failed', e);
-      }
-      // Small delay so the OS settles focus to the prior foreground window
-      // before we send the synthetic paste keystroke.
-      await new Promise((r) => setTimeout(r, 60));
-      await invoke('reinject_text', { text });
-      // Instant feedback: clear editor state and drop back to compact idle.
-      transcript = '';
-      editableTranscript = '';
-      originalFinal = '';
-      pillState = 'idle';
-    } catch (e) {
-      console.warn('reinject_text failed from pill', e);
-      // Still drop the review so user isn't stuck.
-      cancelReview();
-    }
-  }
-
-  function cancelReview() {
-    transcript = '';
-    editableTranscript = '';
-    originalFinal = '';
-    // Respond instantly for polished feel.
-    pillState = 'idle';
-  }
-
   onMount(async () => {
     pillStyle = loadPillStyle();
 
@@ -424,60 +296,17 @@
       unlistenState = await listen<PillStatePayload>('pill-state', (event) => {
         const next = event.payload?.state ?? 'idle';
 
-        // During active quick-edit review we ignore the backend's auto-idle
-        // timer ONLY while the user is actually editing the textarea (focus
-        // is in there) or has unsaved edits. Otherwise we let the idle
-        // transition take the pill back to its compact form — leaving it
-        // stuck open after a successful paste was the cause of the
-        // "pill hangs forever" bug.
-        if (pillState === 'success' && next === 'idle') {
-          const ta = transcriptTa;
-          const taHasFocus = ta && document.activeElement === ta;
-          const hasUnsavedEdits =
-            editableTranscript.length > 0 &&
-            editableTranscript !== originalFinal;
-          if (taHasFocus || hasUnsavedEdits) {
-            // User is engaged — keep the editor open.
-            return;
-          }
-          // Auto-paste already happened; fall through to clear + idle.
-        }
-
         pillState = next;
         errorMessage = event.payload?.message ?? null;
         if (next !== 'error') {
           errorMessage = null;
         }
         if (next === 'listening') {
-          transcript = '';
-          editableTranscript = '';
-          originalFinal = '';
           startWaveLoop();
-          startSim();
         } else {
           stopWaveLoop();
-          stopSim();
-          if (next === 'success') {
-            if (transcript) {
-              editableTranscript = transcript;
-              originalFinal = transcript;
-            }
-            // NOTE: We deliberately do NOT auto-focus the textarea here.
-            // The backend already auto-pasted the text into the focused
-            // target app; if we stole focus back into the pill's textarea,
-            // any subsequent Ctrl+V the user typed would paste into the
-            // pill instead of the target. The user can click "Edit & Paste"
-            // to focus the textarea if they want to correct anything.
-            tick().then(() => {
-              if (transcriptTa) {
-                autoResizeTa();
-              }
-            });
-          }
           if (next === 'idle' || next === 'error') {
-            transcript = '';
-            editableTranscript = '';
-            originalFinal = '';
+            // compact status only
           }
         }
       });
@@ -485,21 +314,7 @@
       console.warn('pill-state listen failed', e);
     }
 
-    // Listen for live partial transcripts (simulated during listen + real final).
-    try {
-      unlistenPartial = await listen<PartialTranscriptPayload>('partial-transcript', (event) => {
-        const t = (event.payload?.text ?? '').trim();
-        if (!t) return;
-        transcript = t;
-        if (event.payload?.is_final) {
-          originalFinal = t;
-          editableTranscript = t;
-          // If we are still listening/processing visually, let success state drive the UI.
-        }
-      });
-    } catch (e) {
-      console.warn('partial-transcript listen failed', e);
-    }
+    // (partial-transcript listener removed — no transcript text is rendered in the pill)
 
     // Listen for size changes broadcast from the backend when the user
     // adjusts the width/height sliders in Settings.
@@ -517,11 +332,9 @@
 
   onDestroy(() => {
     stopWaveLoop();
-    stopSim();
     if (unlistenLevel) unlistenLevel();
     if (unlistenState) unlistenState();
     if (unlistenStyle) unlistenStyle();
-    if (unlistenPartial) unlistenPartial();
     if (unlistenSize) unlistenSize();
     cleanupDrag();
   });
@@ -572,60 +385,18 @@
         <path class="wave-echo" d={wavePaths.stroke} />
       </svg>
     </div>
-    {#if transcript}
-      <div class="live-text" title={transcript} aria-live="polite">
-        <span class="speaking">…</span> {transcript}
-      </div>
-    {/if}
     <button class="close" onclick={(e) => { e.stopPropagation(); close(); }} title="Hide pill" aria-label="Hide pill">×</button>
   {:else if pillState === 'processing'}
     <div class="icon">
       <span class="spinner" aria-hidden="true"></span>
     </div>
     <div class="label">Processing…</div>
-    {#if transcript}
-      <div class="live-text dim" title={transcript}>{transcript}</div>
-    {/if}
     <button class="close" onclick={(e) => { e.stopPropagation(); close(); }} title="Hide pill" aria-label="Hide pill">×</button>
   {:else if pillState === 'success'}
     <div class="icon">
       <span class="check" aria-hidden="true">✓</span>
     </div>
-    <div class="review">
-      <textarea
-        bind:this={transcriptTa}
-        bind:value={editableTranscript}
-        class="transcript-ta"
-        rows="1"
-        placeholder="Your words…"
-        oninput={autoResizeTa}
-        onkeydown={onTaKeydown}
-        aria-label="Edit transcript before pasting"
-      ></textarea>
-      <div class="quick-actions">
-        <button
-          class="action confirm"
-          onclick={(e) => { e.stopPropagation(); confirmPaste(); }}
-          title="Paste the text as shown (or as originally heard)"
-        >
-          Confirm Paste
-        </button>
-        <button
-          class="action edit"
-          onclick={(e) => { e.stopPropagation(); editAndPaste(); }}
-          title="Paste the edited version"
-        >
-          Edit &amp; Paste
-        </button>
-        <button
-          class="action cancel"
-          onclick={(e) => { e.stopPropagation(); cancelReview(); }}
-          title="Discard, do not paste"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
+    <div class="label">Pasted</div>
     <button class="close" onclick={(e) => { e.stopPropagation(); close(); }} title="Hide pill" aria-label="Hide pill">×</button>
   {:else if pillState === 'error'}
     <div class="icon">
@@ -685,8 +456,8 @@
 
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
+    gap: 6px;
+    padding: 4px 10px;
     width: var(--pill-w);
     height: var(--pill-h);
     box-sizing: border-box;
@@ -700,6 +471,7 @@
     font-size: 12px;
     user-select: none;
     cursor: grab;
+    overflow: hidden;
     box-shadow:
       0 2px 8px rgba(0, 0, 0, 0.18),
       0 0 0 1px rgba(124, 58, 237, 0.06);
@@ -834,11 +606,12 @@
   }
 
   .waveform {
-    flex: 1;
-    min-width: 108px;
-    height: 34px;
-    padding: 3px 8px;
-    border-radius: 10px;
+    flex: 1 1 0;
+    min-width: 48px;
+    max-width: 120px;
+    height: 28px;
+    padding: 2px 6px;
+    border-radius: 8px;
     background: rgba(0, 0, 0, 0.42);
     border: 1px solid rgba(255, 255, 255, 0.16);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -911,9 +684,11 @@
     font: inherit;
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 0;
     cursor: pointer;
+    flex: 1;
+    justify-content: center;
   }
   .idle-button:focus-visible {
     outline: 2px solid var(--accent);
@@ -962,149 +737,4 @@
     to { transform: scale(1); opacity: 1; }
   }
 
-  /* --- Live partial transcript (speaking) + quick-edit styles --------------- */
-
-  .live-text {
-    font-size: 11px;
-    line-height: 1.2;
-    color: var(--fg);
-    max-width: 168px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 1px 6px;
-    border-radius: 6px;
-    background: rgba(0, 0, 0, 0.18);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    flex: 1;
-    min-width: 0;
-  }
-  .live-text .speaking {
-    color: var(--accent);
-    font-weight: 600;
-    display: inline-block;
-    width: 14px;
-    text-align: left;
-    opacity: 0.9;
-    animation: speak-pulse 1.1s ease-in-out infinite;
-  }
-  .live-text.dim {
-    opacity: 0.75;
-    font-size: 10.5px;
-  }
-
-  @keyframes speak-pulse {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
-  }
-
-  .review {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-    min-width: 150px;
-    max-width: 260px;
-  }
-
-  .transcript-ta {
-    appearance: none;
-    font: inherit;
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1.25;
-    padding: 4px 7px;
-    border-radius: 7px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--fg);
-    resize: none;
-    overflow: hidden;
-    min-height: 18px;
-    max-height: 68px;
-    width: 100%;
-    box-sizing: border-box;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    transition: border-color 120ms ease, box-shadow 120ms ease;
-  }
-  .transcript-ta:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(196, 181, 253, 0.22);
-    background: rgba(255, 255, 255, 0.09);
-  }
-  .transcript-ta::placeholder {
-    color: var(--muted);
-    opacity: 0.65;
-  }
-
-  .quick-actions {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    flex-wrap: nowrap;
-  }
-
-  .action {
-    appearance: none;
-    background: rgba(255, 255, 255, 0.07);
-    color: var(--fg);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    font-size: 9.5px;
-    line-height: 1;
-    padding: 2px 7px;
-    border-radius: 999px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition:
-      background 100ms ease,
-      color 100ms ease,
-      border-color 100ms ease,
-      transform 80ms ease;
-    font-weight: 500;
-    letter-spacing: 0.01em;
-  }
-  .action:hover {
-    background: rgba(255, 255, 255, 0.14);
-    border-color: rgba(255, 255, 255, 0.3);
-  }
-  .action:active {
-    transform: translateY(0.5px);
-  }
-  .action.confirm {
-    background: rgba(92, 255, 156, 0.14);
-    border-color: rgba(92, 255, 156, 0.35);
-    color: #d1f7df;
-  }
-  .action.confirm:hover {
-    background: rgba(92, 255, 156, 0.24);
-  }
-  .action.edit {
-    background: rgba(196, 181, 253, 0.14);
-    border-color: rgba(196, 181, 253, 0.35);
-  }
-  .action.edit:hover {
-    background: rgba(196, 181, 253, 0.22);
-  }
-  .action.cancel {
-    color: var(--muted);
-    border-color: rgba(255, 255, 255, 0.12);
-    background: transparent;
-    font-size: 9px;
-  }
-  .action.cancel:hover {
-    color: var(--danger);
-    background: rgba(255, 92, 124, 0.1);
-    border-color: rgba(255, 92, 124, 0.3);
-  }
-
-  /* When review is visible, give the pill a touch more room without exploding size */
-  .pill.success {
-    padding: 8px 12px;
-    height: auto;
-    min-height: 56px;
-  }
-  .pill.success .review {
-    margin-right: 2px;
-  }
 </style>
