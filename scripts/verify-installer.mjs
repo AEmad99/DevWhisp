@@ -22,6 +22,9 @@ function findInstaller() {
   if (installers.length === 0) {
     throw new Error(`No NSIS setup.exe found in ${BUNDLE_DIR}`);
   }
+  // Prefer the newest build (by mtime) so re-runs in a shared bundle dir
+  // verify the artifact we just produced, not a stale older one.
+  installers.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
   return installers[0];
 }
 

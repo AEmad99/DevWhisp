@@ -76,9 +76,24 @@ pub fn run() {
             // configured recording mode is honored — push-to-talk records
             // while held; toggle starts on the first press and stops on the
             // next (key-up ignored); VAD auto-ends on silence.
-            if let Err(e) = hotkey::register_initial(app.handle()) {
-                log::error!("failed to register initial hotkey: {e:?}");
-            }
+            //
+            // CRITICAL: the global-shortcut plugin's `on_shortcut` internally
+            // dispatches the actual OS registration onto the main thread via
+            // `run_on_main_thread` and then blocks on a channel for the
+            // result. The setup hook ALSO runs on the main thread, so calling
+            // `register_initial` synchronously here would deadlock (the main
+            // thread blocks waiting for a task it can never run because it's
+            // busy blocking). We defer registration to the next iteration of
+            // the event loop so the setup hook can return first.
+            let reg_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // Yield once so the setup hook returns and the main-thread
+                // event loop is free to process the registration task.
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                if let Err(e) = hotkey::register_initial(&reg_app) {
+                    log::error!("failed to register initial hotkey: {e:?}");
+                }
+            });
 
             // Pre-warm the whisper model in the background so the very first
             // press-and-release doesn't pay the model-load cost (~1 s on
@@ -132,6 +147,7 @@ pub fn run() {
             ipc::list_model_statuses,
             ipc::get_hotkey,
             ipc::set_hotkey,
+            ipc::list_predefined_hotkeys,
             pill::ipc::show_pill,
             pill::ipc::hide_pill,
             pill::ipc::toggle_pill,

@@ -606,24 +606,13 @@
   <section class="card" id="sec-recording">
     <h2>Recording</h2>
 
-    <div class="row">
+    <div class="row row-top">
       <div class="row-main">
         <div class="row-title">Hotkey</div>
         <div class="row-sub">
           Pick the key combo that arms DevWhisp. The currently active
           binding is <strong>{currentHotkey}</strong> — hold it (or tap it,
           in toggle mode) to talk.
-        </div>
-
-        <!-- Audio devices (top-tier control) -->
-        <div class="row">
-          <label for="audio-device">Input Device</label>
-          <select id="audio-device" bind:value={selectedDevice} disabled={audioBusy} onchange={onDeviceChange}>
-            {#each audioDevices as dev}
-              <option value={dev}>{dev}</option>
-            {/each}
-          </select>
-          <button onclick={() => refreshAudioDevices()} disabled={audioBusy}>Refresh</button>
         </div>
       </div>
       <div class="row-ctl" style="flex-direction: column; align-items: stretch; gap: 8px; min-width: 320px;">
@@ -658,6 +647,23 @@
         {#if hotkeyError}
           <div class="row-error">{hotkeyError}</div>
         {/if}
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="row">
+      <div class="row-main">
+        <div class="row-title">Input Device</div>
+        <div class="row-sub">Microphone DevWhisp listens on. Refresh if you just plugged one in.</div>
+      </div>
+      <div class="row-ctl">
+        <select id="audio-device" bind:value={selectedDevice} disabled={audioBusy} onchange={onDeviceChange}>
+          {#each audioDevices as dev}
+            <option value={dev}>{dev}</option>
+          {/each}
+        </select>
+        <button onclick={() => refreshAudioDevices()} disabled={audioBusy}>Refresh</button>
       </div>
     </div>
 
@@ -1154,6 +1160,7 @@
     gap: 18px;
     padding: 6px 0;
   }
+  .row.row-top { align-items: flex-start; }
   .row-main { flex: 1; min-width: 0; }
   .row-title { color: var(--text); font-size: 14px; font-weight: 500; }
   .row-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
