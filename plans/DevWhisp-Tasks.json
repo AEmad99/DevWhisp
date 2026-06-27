@@ -1,0 +1,417 @@
+{
+  "project": {
+    "name": "DevWhisp",
+    "version": "0.2.0-plan",
+    "description": "BridgeVoice-style small, tray-resident, push-to-talk voice-to-text desktop app with floating always-on-top pill widget. Embedded STT (Moonshine via ONNX Runtime), cursor-paste text injection, transcription history. CPU-only.",
+    "owner": "Ahmed",
+    "workspace": "D:\\projects\\DevWhisp",
+    "license": "TBD",
+    "created": "2026-06-26",
+    "status": "planning"
+  },
+  "objectives": [
+    "Tray-resident push-to-talk voice-to-text app",
+    "Floating always-on-top pill widget with 5 states (idle/listening/processing/success/error)",
+    "Embedded STT model (no cloud, no API key)",
+    "CPU-only (works on machines without dedicated GPU)",
+    "Cursor-paste text injection (clipboard + Ctrl/Cmd+V) into focused app",
+    "Transcription history window (browse, search, copy, re-inject, delete)",
+    "Custom dictionary (spoken phrase -> replacement)",
+    "Onboarding wizard for first-run",
+    "Sub-second first-token latency on 5s utterances",
+    "Idle RAM <= 80 MB, bundle <= 25 MB",
+    "Multilingual v2 (8+ languages)"
+  ],
+  "success_criteria": {
+    "installer_size_mb_max": 25,
+    "idle_ram_mb_max": 80,
+    "cold_start_to_tray_ms_max": 800,
+    "first_token_latency_ms_max": 300,
+    "realtime_factor_min": 5,
+    "wer_clean_english_max": 0.05,
+    "cursor_paste_works_in": ["editor", "terminal", "browser_address_bar", "slack", "notion", "email", "code_ide"],
+    "languages_v1": ["en"],
+    "languages_v2": ["en", "zh", "ja", "ko", "es", "fr", "de", "pt"]
+  },
+  "ui_design": {
+    "design_language": "Glassmorphism dark-mode first; soft purple/violet accent (#7C5CFF); Inter UI font; JetBrains Mono for transcripts; spring-ease-out animations 200-300ms",
+    "brand_kit": {
+      "family": ["DevTerm", "DevSpace", "DevWhisp"],
+      "shared_dna": {
+        "canvas": "1024x1024",
+        "container": "rounded square 196-208px corner radius",
+        "padding": "64-96px from edges",
+        "accent_strategy": "white stroke + 1 solid fill element",
+        "stroke_weight_px": "52-104",
+        "naming_convention": "Dev + noun"
+      },
+      "color_palette": {
+        "devterm": {"top": "#2a3350", "bottom": "#12131b", "accent": "#9bbcff -> #6a8dff", "vibe": "deep, terminal"},
+        "devspace": {"top": "#7cc1ff", "bottom": "#4a90d9", "accent": "#ffffff", "vibe": "open, sky, AI"},
+        "devwhisp": {"top": "#c4b5fd", "bottom": "#7c3aed", "accent": "#ffffff", "vibe": "soft, airy, violet"}
+      },
+      "icon_concepts": [
+        {"id": "A", "name": "Wisp of Sound", "description": "Three nested wisp curves from a white node", "svg_path": "../design/devwhisp-icon-A-wisp.svg", "selected": false, "note": "superseded — organic wisps read as a feather/broom and broke the family's geometric language"},
+        {"id": "B", "name": "W Monogram", "description": "Bold W letterform with two sound-wave wisps", "svg_path": "../design/devwhisp-icon-B-monogram.svg", "selected": false},
+        {"id": "C", "name": "Breath", "description": "Single S-curve wisp from a tiny source dot", "svg_path": "../design/devwhisp-icon-C-breath.svg", "selected": false},
+        {"id": "D", "name": "Sound Wisp", "description": "Sound wave that tapers into a wisp", "svg_path": "../design/devwhisp-icon-D-soundwisp.svg", "selected": false}
+      ],
+      "icon_final": {
+        "name": "Voice Waves",
+        "selected": true,
+        "locked_at": "2026-06-26",
+        "description": "Solid white source dot + three concentric arcs radiating right (opacity tapers 1.0 -> 0.80 -> 0.60). Geometric and family-matched with DevTerm (>_) and DevSpace (<*>): white strokes + one solid fill element, round caps, legible at 16px.",
+        "canonical_svg": "../design/devwhisp-icon.svg",
+        "raster_pipeline": "../design/render_voicewaves_icon.py",
+        "in_app_components": ["src/lib/AppIcon.svelte", "src/lib/BrandMark.svelte"]
+      },
+      "pill_state_colors": {
+        "idle": "#7C5CFF at 30% alpha (soft violet, brand color)",
+        "listening": "#FF5C7C -> #FF9C5C gradient (red-pink, attention)",
+        "processing": "#8A8FA3 (neutral gray, working)",
+        "success": "#5CFF9C (mint green, positive)",
+        "error": "#FFB45C (amber, warning)"
+      },
+      "typography": {
+        "ui_font": "Inter",
+        "transcript_in_pill": "JetBrains Mono",
+        "transcript_in_history": "Inter"
+      },
+      "identifiers": {
+        "app_name": "DevWhisp",
+        "binary_name": "devwhisp",
+        "tray_tooltip": "DevWhisp",
+        "user_agent": "devwhisp/<version> (tauri)",
+        "cargo_crate": "devwhisp"
+      }
+    },
+    "windows": [
+      {
+        "name": "Pill widget",
+        "type": "frameless_transparent_always_on_top",
+        "default_position": "bottom-center, 24px from edge",
+        "states": [
+          {"id": "idle", "size": "120x40", "elements": ["mic_icon_dim", "hover_label_optional"], "interaction": ["hover_show_label", "double_click_toggle", "drag_to_reposition", "right_click_menu"]},
+          {"id": "listening", "size": "280x56", "elements": ["mic_icon_solid", "7_band_audio_visualizer", "partial_transcript_text"], "animation": "200ms spring expand"},
+          {"id": "processing", "size": "280x56", "elements": ["loading_spinner", "transcribing_label", "elapsed_ms"], "animation": "morph from listening"},
+          {"id": "success", "size": "160x40", "elements": ["green_check", "pasted_label"], "duration": "600ms then auto-collapse"},
+          {"id": "error", "size": "320x56", "elements": ["error_icon", "error_message"], "duration": "3000ms then auto-collapse"}
+        ],
+        "behaviors": ["drag_to_reposition", "snap_to_edge_80px", "click_through_in_idle_optional", "auto_hide_after_5s_optional", "multi_monitor_latch_to_primary"]
+      },
+      {
+        "name": "Tray icon + menu",
+        "tray_icon": "circular mic badge, dark bg, accent color, pulses while recording",
+        "menu": [
+          {"label": "Start/Stop Recording", "dynamic": true},
+          {"label": "{hotkey} · {mode}", "dynamic": true, "disabled": true},
+          {"label": "{model} · {language}", "dynamic": true, "disabled": true},
+          {"separator": true},
+          {"label": "Open History"},
+          {"label": "Settings..."},
+          {"label": "Help"},
+          {"separator": true},
+          {"label": "Launch on startup", "type": "checkbox"},
+          {"label": "Quit DevWhisp"}
+        ]
+      },
+      {
+        "name": "History window",
+        "type": "normal_window",
+        "size": "720x640",
+        "sections": ["header_search_filter", "transcript_list", "footer_stats"],
+        "row_metadata": ["timestamp", "duration", "word_count", "source_badge", "text_snippet", "copy_button"],
+        "row_actions": ["hover_copy", "hover_delete", "click_expand", "right_click_context"],
+        "context_actions": ["copy", "re-inject", "delete", "add_to_dictionary"],
+        "footer_stats": ["today_count", "today_words", "today_wpm", "settings_link"]
+      },
+      {
+        "name": "Settings panel",
+        "type": "modal",
+        "size": "640x720",
+        "layout": "sidebar_nav + content",
+        "sections": [
+          {"id": "general", "items": ["launch_on_startup", "minimize_to_tray", "ui_language"]},
+          {"id": "models", "items": ["model_picker", "download_manager", "size_accuracy_metadata"]},
+          {"id": "theme", "items": ["dark_light_system", "accent_color"]},
+          {"id": "language", "items": ["ui_language", "stt_language"]},
+          {"id": "audio", "items": ["input_device", "noise_suppression", "gain"]},
+          {"id": "shortcuts", "items": ["record_hotkey", "open_history", "open_settings"]},
+          {"id": "history", "items": ["clear_all", "export", "retention_days"]},
+          {"id": "notifications", "items": ["toast_on_complete", "completion_sound", "badge"]},
+          {"id": "updates", "items": ["auto_update_channel"]},
+          {"id": "about", "items": ["version", "links", "check_for_updates"]}
+        ]
+      },
+      {
+        "name": "Onboarding wizard",
+        "type": "first_run_only",
+        "steps": [
+          {"step": 1, "title": "Welcome", "content": "Talk instead of type. Value prop + screenshot"},
+          {"step": 2, "title": "Permissions", "content": "Microphone + accessibility permission requests"},
+          {"step": 3, "title": "Pick a model", "content": "Moonshine Tiny (50MB) recommended; Base (100MB) more accurate"},
+          {"step": 4, "title": "Set hotkey", "content": "Capture keybind, default Ctrl+Shift+Space"},
+          {"step": 5, "title": "Try it", "content": "Live test - must succeed to complete onboarding"}
+        ]
+      }
+    ]
+  },
+  "cursor_paste_injection": {
+    "algorithm": [
+      "1. Before recording: save currently-focused window handle + clipboard snapshot",
+      "2. On transcription complete: format text (capitalize, dict replace, append space)",
+      "3. clipboard.set(formatted_text) via arboard",
+      "4. Wait 30ms for clipboard propagation",
+      "5. Send synthetic Ctrl+V (Win/Linux) or Cmd+V (macOS) via enigo",
+      "6. After 5s: restore original clipboard content"
+    ],
+    "edge_cases": {
+      "no_focused_text_field": "Show notification + keep text on clipboard",
+      "terminal_bracketed_paste": "Wrap in \\x1b[200~\\x1b[201~",
+      "url_field": "Skip auto-capitalize",
+      "rich_text_editor": "Plain text clipboard fallback",
+      "fullscreen_blocker": "Fall back to clipboard-only + notification"
+    },
+    "formatting_options": {
+      "auto_capitalize": "configurable",
+      "append_space": "configurable",
+      "dictionary_replacements": "applied longest-match-first, case-insensitive",
+      "strip_whitespace": "leading + trailing"
+    }
+  },
+  "architecture": {
+    "selected": "A",
+    "options_evaluated": ["A_Tauri_Rust_Moonshine", "B_Electron_WhisperCPP", "C_Native_Rust_DIY"],
+    "selected_rationale": "Smallest bundle (5-15 MB), lowest RAM (30-60 MB), native Rust FFI to ONNX Runtime avoids Node.js boundary. Moonshine is the best 2025-2026 fit for short-utterance, CPU-only, edge STT. UI designs are stack-agnostic so B is a viable fallback if Rust ramp-up is a blocker.",
+    "stack": {
+      "framework": "Tauri 2.x",
+      "backend_language": "Rust 1.80+",
+      "frontend_language": "TypeScript 5.x",
+      "frontend_framework": "Svelte 5 (preferred) or React 18",
+      "stt_engine": "Moonshine via ONNX Runtime (ort crate)",
+      "stt_models": [
+        "moonshine-tiny-en (~50MB INT8) - v1 default",
+        "moonshine-base-en (~100MB INT8) - v1 high-accuracy option",
+        "moonshine-medium-multilingual (~350MB INT8) - v2",
+        "whisper.cpp small (~466MB) - v1 fallback",
+        "vosk small (~50MB per language) - v2 low-end fallback"
+      ],
+      "audio": "cpal + rubato + silero-vad + FFT visualizer",
+      "desktop_integration": [
+        "tauri-plugin-global-shortcut",
+        "tauri-plugin-system-tray",
+        "tauri-plugin-autostart",
+        "tauri-plugin-single-instance",
+        "tauri-plugin-updater",
+        "tauri-plugin-clipboard-manager",
+        "tauri-plugin-store"
+      ],
+      "text_injection": "enigo + arboard with clipboard save/restore",
+      "storage": "rusqlite (transcription history) + tauri-plugin-store (settings)",
+      "ci_cd": "GitHub Actions + tauri-action",
+      "distribution": ["MSI/NSIS (Windows)", "DMG (macOS)", "DEB/AppImage (Linux)"]
+    }
+  },
+  "milestones": [
+    {"id": "M1", "name": "Feasibility spike", "duration_weeks": 1, "exit_criterion": "End-to-end mic -> Moonshine -> cursor-paste on Windows; latency/RAM/RTF measured; first pill render"},
+    {"id": "M2", "name": "Core engine", "duration_weeks": 3, "exit_criterion": "Push-to-talk works on 3 Windows machines; text pasted into any focused app; history saved; dictionary works"},
+    {"id": "M3", "name": "UI/UX", "duration_weeks": 2, "exit_criterion": "Pill widget + history window + settings panel + onboarding all working; first-time-to-paste < 2 min"},
+    {"id": "M4", "name": "Hardening & release", "duration_weeks": 2, "exit_criterion": "Signed v0.1.0 installer; CI green; auto-update working; theme + a11y done"},
+    {"id": "M5", "name": "Multilingual + cross-platform", "duration_weeks": 3, "exit_criterion": "v1.0.0 with multilingual support, macOS + Linux ports, export, wake word"}
+  ],
+  "phases": [
+    {
+      "id": "P1",
+      "name": "Feasibility spike",
+      "milestone": "M1",
+      "tasks": [
+        {"id": "T1.1", "name": "Stand up Tauri 2 + Svelte 5 scaffold", "effort_days": 0.5, "priority": "high", "depends_on": []},
+        {"id": "T1.2", "name": "Add ort crate, verify Moonshine Tiny ONNX loads on Windows CPU", "effort_days": 1, "priority": "high", "depends_on": ["T1.1"]},
+        {"id": "T1.3", "name": "Minimal audio capture (cpal) + resampler", "effort_days": 1, "priority": "high", "depends_on": ["T1.1"]},
+        {"id": "T1.4", "name": "End-to-end spike: capture 5s WAV -> Moonshine -> print text", "effort_days": 1, "priority": "high", "depends_on": ["T1.2", "T1.3"]},
+        {"id": "T1.5", "name": "FIRST CURSOR-PASTE TEST: speak -> text in focused app", "effort_days": 0.5, "priority": "high", "depends_on": ["T1.4"]},
+        {"id": "T1.6", "name": "Measure cold start, first-token latency, RTF, RAM", "effort_days": 0.5, "priority": "medium", "depends_on": ["T1.5"]}
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "Core engine",
+      "milestone": "M2",
+      "tasks": [
+        {"id": "T2.1", "name": "Ring-buffer + lock-free audio pipeline", "effort_days": 2, "priority": "high", "depends_on": ["T1.5"]},
+        {"id": "T2.2", "name": "silero-vad integration for speech detection", "effort_days": 2, "priority": "high", "depends_on": ["T2.1"]},
+        {"id": "T2.3", "name": "Streaming Moonshine runner with partial outputs", "effort_days": 4, "priority": "high", "depends_on": ["T2.1", "T1.2"]},
+        {"id": "T2.4", "name": "Utterance segmentation (silence detection + final decode)", "effort_days": 2, "priority": "high", "depends_on": ["T2.2", "T2.3"]},
+        {"id": "T2.5", "name": "Global hotkey wiring (Ctrl+Shift+Space default)", "effort_days": 1, "priority": "high", "depends_on": ["T1.1"]},
+        {"id": "T2.6", "name": "Cursor-paste text injection (clipboard save/set/paste + restore)", "effort_days": 2, "priority": "high", "depends_on": ["T2.4"]},
+        {"id": "T2.7", "name": "Text formatter (capitalize, dict replace, append space)", "effort_days": 1, "priority": "high", "depends_on": ["T2.6"]},
+        {"id": "T2.8", "name": "Custom dictionary CRUD (spoken -> replacement)", "effort_days": 1, "priority": "high", "depends_on": ["T2.7"]},
+        {"id": "T2.9", "name": "System tray icon + menu (Start, History, Settings, Quit)", "effort_days": 2, "priority": "high", "depends_on": ["T1.1"]},
+        {"id": "T2.10", "name": "History DB schema + insert/query (rusqlite)", "effort_days": 1, "priority": "high", "depends_on": ["T2.6"]}
+      ]
+    },
+    {
+      "id": "P3",
+      "name": "UI / UX",
+      "milestone": "M3",
+      "tasks": [
+        {"id": "T3.1", "name": "Pill widget - frameless, transparent, always-on-top WebView", "effort_days": 3, "priority": "high", "depends_on": ["T2.4"]},
+        {"id": "T3.2", "name": "Pill state machine (idle/listening/processing/success/error)", "effort_days": 2, "priority": "high", "depends_on": ["T3.1"]},
+        {"id": "T3.3", "name": "7-band audio visualizer (FFT -> SVG bars, 30fps)", "effort_days": 2, "priority": "high", "depends_on": ["T2.1"]},
+        {"id": "T3.4", "name": "Live partial transcript in pill (streaming text, fade)", "effort_days": 1, "priority": "high", "depends_on": ["T3.1", "T2.3"]},
+        {"id": "T3.5", "name": "Pill drag + snap-to-edge behavior", "effort_days": 1, "priority": "medium", "depends_on": ["T3.1"]},
+        {"id": "T3.6", "name": "History window - list, search, filter chips, copy/re-inject/delete", "effort_days": 3, "priority": "high", "depends_on": ["T2.10"]},
+        {"id": "T3.7", "name": "Settings panel - full sidebar nav + 10 sections", "effort_days": 3, "priority": "high", "depends_on": ["T2.8"]},
+        {"id": "T3.8", "name": "Onboarding wizard (4 steps, first-run only)", "effort_days": 2, "priority": "high", "depends_on": ["T1.1"]},
+        {"id": "T3.9", "name": "Stats footer in history (WPM, total words, session count)", "effort_days": 0.5, "priority": "medium", "depends_on": ["T3.6"]}
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "Hardening & release",
+      "milestone": "M4",
+      "tasks": [
+        {"id": "T4.1", "name": "Benchmark suite (RTF, latency, RAM across 5 machines)", "effort_days": 2, "priority": "high", "depends_on": ["T2.6"]},
+        {"id": "T4.2", "name": "Tauri bundler config (MSI/NSIS for Windows, signed)", "effort_days": 2, "priority": "high", "depends_on": ["T1.1"]},
+        {"id": "T4.3", "name": "Auto-update (signed manifests via tauri-plugin-updater)", "effort_days": 2, "priority": "high", "depends_on": ["T4.2"]},
+        {"id": "T4.4", "name": "Code signing setup (Azure Trusted Signing)", "effort_days": 1, "priority": "high", "depends_on": ["T4.2"]},
+        {"id": "T4.5", "name": "CI/CD (GitHub Actions: typecheck + lint + cargo test + smoke)", "effort_days": 1, "priority": "high", "depends_on": ["T4.1"]},
+        {"id": "T4.6", "name": "Single-instance enforcement", "effort_days": 0.5, "priority": "low", "depends_on": ["T1.1"]},
+        {"id": "T4.7", "name": "Autostart-on-login", "effort_days": 0.5, "priority": "low", "depends_on": ["T2.9"]},
+        {"id": "T4.8", "name": "Crash reporting (sentry-rs or in-house)", "effort_days": 1, "priority": "medium", "depends_on": ["T4.1"]},
+        {"id": "T4.9", "name": "Theme support (Dark / Light / System)", "effort_days": 1, "priority": "medium", "depends_on": ["T3.1"]},
+        {"id": "T4.10", "name": "Accessibility (screen reader, keyboard nav, high contrast)", "effort_days": 1, "priority": "medium", "depends_on": ["T3.7"]},
+        {"id": "T4.11", "name": "First-run UX polish (permissions, model download wizard)", "effort_days": 2, "priority": "high", "depends_on": ["T3.8"]}
+      ]
+    },
+    {
+      "id": "P5",
+      "name": "Multilingual & polish",
+      "milestone": "M5",
+      "tasks": [
+        {"id": "T5.1", "name": "Moonshine Medium (multilingual) integration", "effort_days": 2, "priority": "medium", "depends_on": ["T2.3"]},
+        {"id": "T5.2", "name": "Language detection (auto, with manual override)", "effort_days": 2, "priority": "medium", "depends_on": ["T5.1"]},
+        {"id": "T5.3", "name": "Post-processing: punctuation restoration", "effort_days": 3, "priority": "low", "depends_on": ["T2.4"]},
+        {"id": "T5.4", "name": "Filler-word removal (um, uh, like)", "effort_days": 1, "priority": "low", "depends_on": ["T5.3"]},
+        {"id": "T5.5", "name": "macOS port (CoreAudio, accessibility perms, code signing)", "effort_days": 3, "priority": "medium", "depends_on": ["T4.4"]},
+        {"id": "T5.6", "name": "Linux port (PulseAudio/PipeWire, AppImage)", "effort_days": 2, "priority": "medium", "depends_on": ["T4.4"]},
+        {"id": "T5.7", "name": "Whisper.cpp fallback integration (user opt-in)", "effort_days": 2, "priority": "low", "depends_on": ["T2.3"]},
+        {"id": "T5.8", "name": "Vosk fallback for very-low-end machines", "effort_days": 1, "priority": "low", "depends_on": ["T2.3"]},
+        {"id": "T5.9", "name": "Export history to JSON / CSV / Markdown", "effort_days": 1, "priority": "medium", "depends_on": ["T3.6"]},
+        {"id": "T5.10", "name": "Wake word detection ('Hey DevWhisp')", "effort_days": 3, "priority": "low", "depends_on": ["T5.1"]}
+      ]
+    }
+  ],
+  "critical_path": ["T1.1", "T1.3", "T1.4", "T1.5", "T2.1", "T2.4", "T2.6", "T3.1", "T3.2", "T3.6", "T4.1", "T4.2", "T4.3"],
+  "dependencies": {
+    "T1.2": ["T1.1"],
+    "T1.3": ["T1.1"],
+    "T1.4": ["T1.2", "T1.3"],
+    "T1.5": ["T1.4"],
+    "T1.6": ["T1.5"],
+    "T2.1": ["T1.5"],
+    "T2.2": ["T2.1"],
+    "T2.3": ["T2.1", "T1.2"],
+    "T2.4": ["T2.2", "T2.3"],
+    "T2.5": ["T1.1"],
+    "T2.6": ["T2.4"],
+    "T2.7": ["T2.6"],
+    "T2.8": ["T2.7"],
+    "T2.9": ["T1.1"],
+    "T2.10": ["T2.6"],
+    "T3.1": ["T2.4"],
+    "T3.2": ["T3.1"],
+    "T3.3": ["T2.1"],
+    "T3.4": ["T3.1", "T2.3"],
+    "T3.5": ["T3.1"],
+    "T3.6": ["T2.10"],
+    "T3.7": ["T2.8"],
+    "T3.8": ["T1.1"],
+    "T3.9": ["T3.6"],
+    "T4.1": ["T2.6"],
+    "T4.2": ["T1.1"],
+    "T4.3": ["T4.2"],
+    "T4.4": ["T4.2"],
+    "T4.5": ["T4.1"],
+    "T4.6": ["T1.1"],
+    "T4.7": ["T2.9"],
+    "T4.8": ["T4.1"],
+    "T4.9": ["T3.1"],
+    "T4.10": ["T3.7"],
+    "T4.11": ["T3.8"],
+    "T5.1": ["T2.3"],
+    "T5.2": ["T5.1"],
+    "T5.3": ["T2.4"],
+    "T5.4": ["T5.3"],
+    "T5.5": ["T4.4"],
+    "T5.6": ["T4.4"],
+    "T5.7": ["T2.3"],
+    "T5.8": ["T2.3"],
+    "T5.9": ["T3.6"],
+    "T5.10": ["T5.1"]
+  },
+  "parallel_groups": [
+    ["T2.5", "T2.9"],
+    ["T2.7", "T2.8", "T2.10"],
+    ["T3.3", "T3.4", "T3.5"],
+    ["T3.7", "T3.8", "T3.9"],
+    ["T4.3", "T4.4"],
+    ["T4.9", "T4.10"],
+    ["T5.5", "T5.6"],
+    ["T5.7", "T5.8", "T5.9"]
+  ],
+  "risks": [
+    {"id": "R1", "description": "Moonshine ONNX has bugs on certain CPU features", "likelihood": "medium", "impact": "medium", "mitigation": "Keep whisper.cpp as model-swap fallback"},
+    {"id": "R2", "description": "ort crate breaking changes", "likelihood": "medium", "impact": "low", "mitigation": "Pin known-good version"},
+    {"id": "R3", "description": "Tauri tray plugin quirks on Linux", "likelihood": "high", "impact": "low", "mitigation": "Linux deferred to v2"},
+    {"id": "R4", "description": "Rust ramp-up time blocks ship date", "likelihood": "medium", "impact": "medium", "mitigation": "M1 spike catches this early; pivot to Electron option if Rust blocks"},
+    {"id": "R5", "description": "Cursor-paste blocked by some apps (games, fullscreen UWP)", "likelihood": "high", "impact": "low", "mitigation": "Fall back to clipboard-only + notification; document limitations"},
+    {"id": "R6", "description": "macOS accessibility permission UX friction", "likelihood": "high", "impact": "low", "mitigation": "First-run wizard with clear rationale; Apple notarization"},
+    {"id": "R7", "description": "Model download UX on slow connections", "likelihood": "medium", "impact": "medium", "mitigation": "Stream with resume, SHA-256 verify, progress UI, offline install option"},
+    {"id": "R8", "description": "Code-signing cost/complexity", "likelihood": "medium", "impact": "high", "mitigation": "Azure Trusted Signing ($10/mo); budget $300/yr for certs"},
+    {"id": "R9", "description": "Custom dictionary edge cases", "likelihood": "low", "impact": "low", "mitigation": "Longest-match-first, case-insensitive matching"},
+    {"id": "R10", "description": "Pill widget always-on-top can feel intrusive to users", "likelihood": "medium", "impact": "medium", "mitigation": "Auto-hide after 5s option, click-through mode, easy dismiss"}
+  ],
+  "alternatives_considered": {
+    "stt_models": [
+      {"name": "Moonshine Tiny", "params_m": 27, "size_int8_mb": 50, "languages": ["en"], "wer_libri_clean": 0.0271, "first_token_ms": 110, "selected": true, "phase": "v1", "rationale": "Smallest, fastest, lowest latency for English push-to-talk; WER 2.71% beats Whisper tiny.en"},
+      {"name": "Moonshine Base", "params_m": 61, "size_int8_mb": 100, "languages": ["en"], "wer_libri_clean": 0.0323, "first_token_ms": 150, "selected_for_v1": true, "phase": "v1", "rationale": "Better English accuracy at modest size cost"},
+      {"name": "Moonshine Medium", "params_m": 245, "size_int8_mb": 350, "languages": ["en", "zh", "ja", "ko", "es", "fr", "de", "pt"], "wer_libri_clean": null, "selected_for_v2": true, "phase": "v2", "rationale": "Multilingual; beats Whisper Large V3 WER at 1/6 params"},
+      {"name": "Whisper tiny.en (whisper.cpp)", "params_m": 39, "size_q5_mb": 75, "languages": ["en"], "wer_libri_clean": 0.05, "first_token_ms": 83, "selected_as_fallback": true, "phase": "v1", "rationale": "Battle-tested; best ecosystem; fallback for users with Moonshine issues"},
+      {"name": "Whisper small", "params_m": 244, "size_q5_mb": 466, "languages": ["multilingual"], "wer_libri_clean": 0.034, "first_token_ms": 320, "selected_as_fallback": true, "phase": "v1", "rationale": "Multilingual fallback option"},
+      {"name": "Vosk small", "params_m": null, "size_per_lang_mb": 50, "languages": ["20+"], "wer_libri_clean": 0.10, "first_token_ms": 50, "selected_for_low_end": true, "phase": "v2", "rationale": "Tiny per-language models; works on Raspberry Pi"},
+      {"name": "Parakeet V3", "params_m": 600, "size_mb": null, "languages": ["en"], "wer_libri_clean": 0.012, "first_token_ms": 40, "selected": false, "rationale": "Best accuracy but typically NVIDIA GPU; not ideal for CPU-only target"}
+    ],
+    "desktop_frameworks": [
+      {"name": "Tauri 2", "bundle_mb": 15, "idle_ram_mb": 50, "cold_start_ms": 300, "selected": true, "rationale": "Smallest bundle and RAM; native Rust FFI to ONNX; matches pill-app aesthetic"},
+      {"name": "Electron 29", "bundle_mb": 100, "idle_ram_mb": 150, "cold_start_ms": 900, "selected_as_fallback": true, "rationale": "Fastest dev velocity; mature ecosystem; user has Electron experience from DevTerm"},
+      {"name": "Native Rust (DIY)", "bundle_mb": 5, "idle_ram_mb": 30, "cold_start_ms": 200, "selected": false, "rationale": "Too much DIY work; tray/updater/signing all hand-rolled"}
+    ]
+  },
+  "performance_budget": {
+    "cold_start_to_tray_ms": 400,
+    "hotkey_to_recording_start_ms": 30,
+    "audio_buffer_latency_ms": 80,
+    "vad_frame_inference_ms": 5,
+    "moonshine_tiny_encoder_5s_ms": 80,
+    "first_token_ms": 30,
+    "end_to_end_5s_utterance_ms": 250,
+    "text_injection_ms": 40,
+    "idle_ram_mb": 60,
+    "peak_ram_during_inference_mb": 350,
+    "cpu_idle_pct": 0.5,
+    "cpu_inference_pct_per_core": 60
+  },
+  "open_questions": [
+    "License (MIT vs Apache 2.0 vs commercial)?",
+    "Distribution channels (GitHub only vs Microsoft Store / Winget / Homebrew)?",
+    "Telemetry policy (any usage analytics, or strict local-only)?",
+    "Monetization model (free, freemium, paid)?",
+    "Branding: real name + icon before Phase 4 (DevWhisp is a working title)",
+    "macOS support priority for v1?",
+    "Target hardware floor (how old a CPU must we support)?",
+    "Wake word: v1 or v2?",
+    "Cloud fallback: local-only, or optional Groq/OpenAI (BridgeVoice Pro style)?",
+    "Default hotkey choice (Ctrl+Shift+Space vs Right Option vs Right Ctrl)?"
+  ]
+}

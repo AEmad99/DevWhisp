@@ -1,0 +1,20 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect x="96" y="96" width="832" height="832" rx="200" fill="url(#bg)"/>
+  <!-- A single bold S-curve wisp flowing from a small sound-source dot -->
+  <path d="M 340 720
+           Q 380 560 480 540
+           Q 620 520 640 420
+           Q 660 320 760 300"
+        fill="none"
+        stroke="#ffffff"
+        stroke-width="64"
+        stroke-linecap="round"/>
+  <!-- Sound source (mouth) -->
+  <circle cx="340" cy="720" r="48" fill="#ffffff"/>
+</svg>

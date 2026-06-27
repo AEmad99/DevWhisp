@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Permissions for the main settings/dashboard window. The pill has its own scoped capability file (pill.json).",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:webview:default",
+    "core:event:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
+    "store:default"
+  ]
+}

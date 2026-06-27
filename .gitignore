@@ -1,0 +1,56 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# tauri build artifacts (target dir is huge and reproducible)
+src-tauri/target/
+src-tauri/gen/
+
+# editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# secrets — never commit these
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# runtime / cache
+.cache/
+.tmp/
+
+# private agent state
+.claude/
+.mavis/
+.caelo/
+
+# Installers — too large for the repo (NSIS bundles are ~200 MB and
+# GitHub rejects anything over 100 MB). They are uploaded as Release
+# assets via `gh release upload` instead. The `installers/` folder
+# stays on disk for local rollback.
+installers/*.exe
+
+# Python build/cache artifacts
+__pycache__/
+*.pyc
+*.pyo

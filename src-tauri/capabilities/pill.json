@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "pill",
+  "description": "Permissions for the floating pill window (events + show/hide/move only — no IPC commands).",
+  "windows": ["pill"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:allow-set-position",
+    "core:window:allow-set-size",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-start-dragging"
+  ]
+}

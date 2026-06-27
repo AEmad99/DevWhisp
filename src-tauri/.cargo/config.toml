@@ -1,0 +1,14 @@
+# Cargo configuration for DevWhisp.
+#
+# The whisper-rs build script invokes `bindgen` (needs LLVM's `libclang.dll`)
+# and `cmake` (needs CMake). On Windows the cargo subprocess that runs the
+# build script doesn't always inherit the parent shell's PATH, so we pin the
+# locations here. If you move LLVM/CMake, update these paths.
+#
+# Find current locations:
+#   Get-Command cmake     -> C:\Program Files\CMake\bin\cmake.exe
+#   LIBCLANG_PATH         -> C:\Program Files\LLVM\bin\libclang.dll
+
+[env]
+LIBCLANG_PATH = "C:\\Program Files\\LLVM\\bin"
+CMAKE = "C:\\Program Files\\CMake\\bin\\cmake.exe"

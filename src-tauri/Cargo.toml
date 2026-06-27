@@ -1,0 +1,95 @@
+[package]
+name = "devwhisp"
+version = "0.1.3"
+description = "Small, tray-resident, push-to-talk voice-to-text desktop app with embedded STT"
+authors = ["Ahmed Emad"]
+license = "TBD"
+repository = "https://github.com/AEmad99/devwhisp"
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "devwhisp_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6", features = [] }
+
+[dependencies]
+# Tauri core + plugins
+tauri = { version = "2.11", features = ["tray-icon"] }
+tauri-plugin-log = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-store = "2"
+# tauri-plugin-updater is added in T4.3 (needs signing keys + endpoint config).
+
+# Async + serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+log = "0.4"
+anyhow = "1"
+thiserror = "2"
+
+# Audio
+cpal = "0.18"
+rubato = "0.16"
+
+# Speech-to-text
+# Phase 1: whisper-rs (Whisper.cpp Rust bindings). CPU-only, English tiny.en
+# model, sub-second latency. This is the working STT path so we can close T1.4
+# (end-to-end: speak -> transcribe -> paste in focused app).
+# Moonshine via ONNX Runtime is wired in T1.2 behind the `moonshine` cargo
+# feature; same UX, swappable model.
+whisper-rs = { version = "0.16", default-features = false, features = ["log_backend", "raw-api"] }
+# `ort` is the ONNX Runtime binding. We only need it when the `moonshine` feature
+# is enabled; paired with `ndarray` for tensor handling in inference. The stub
+# in moonshine.rs is replaced by real encoder/decoder sessions when enabled.
+ort = { version = "2.0.0-rc.12", default-features = false, optional = true, features = ["download-binaries", "tls-rustls", "std"] }
+# ndarray not required directly; we use (shape, data) tuples for ort tensors.
+hound = "3"  # WAV I/O for debug
+
+# Text injection
+enigo = "0.6"
+arboard = "3"
+
+# Storage
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Path / fs
+dirs = "5"
+
+# HTTP for model downloads
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"] }
+futures-util = "0.3"
+
+# Concurrency primitives
+once_cell = "1"
+parking_lot = "0.12"
+
+[features]
+default = []
+# Enable real Moonshine ONNX inference. Off by default in Phase 1.
+moonshine = ["dep:ort"]
+
+# --- Optional GPU acceleration for Whisper (opt-in) ------------------------
+# The default build is CPU-only and runs on any PC. These features compile a
+# GPU backend into whisper.cpp; the app automatically uses the GPU when one is
+# present and falls back to CPU otherwise. Each needs the matching SDK at BUILD
+# time:
+#   vulkan — any GPU (NVIDIA/AMD/Intel), best "GPU-or-CPU in one binary".
+#            Needs the Vulkan SDK (glslc) to build. Recommended.
+#   cuda   — NVIDIA only, maximum speed. Needs the CUDA Toolkit (nvcc) to build
+#            and the CUDA runtime on the target machine.
+vulkan = ["whisper-rs/vulkan"]
+cuda = ["whisper-rs/cuda"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
