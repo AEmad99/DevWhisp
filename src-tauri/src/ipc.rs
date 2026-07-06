@@ -276,6 +276,12 @@ pub async fn transcribe_buffer(
     if !out.is_empty() {
         if let Err(e) = history::insert(&out, duration_ms, Some("ptt")) {
             log::warn!("history insert failed: {e:?}");
+        } else {
+            // Keep history bounded: prune old rows now that we've just grown
+            // it. Best-effort; a failure here must not lose the transcription.
+            if let Err(e) = history::prune_if_needed() {
+                log::warn!("history post-insert prune failed: {e:?}");
+            }
         }
     }
 
@@ -314,7 +320,12 @@ pub fn set_acceleration_mode(mode: String) -> Result<(), String> {
         return Err("acceleration_mode must be one of: auto, cpu, gpu".to_string());
     }
     crate::config::save_string("acceleration_mode", &mode);
-    // (Moonshine sessions would be reset here on accel change if using providers; simple CPU path for now.)
+    // Moonshine sessions are provider-specific; reset them so the next
+    // transcription rebuilds with the newly-selected acceleration mode.
+    #[cfg(feature = "moonshine")]
+    {
+        crate::stt::moonshine::reset();
+    }
     Ok(())
 }
 
@@ -435,19 +446,22 @@ pub fn set_selected_audio_device(name: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn get_model_status() -> ModelStatus {
+    use crate::stt::model_manager::ModelVariant;
     let file = crate::stt::model_manager::active_model_path();
     let dir = crate::stt::model_manager::active_model_dir();
-    let variant = dir
+    let (variant, expected) = dir
         .as_ref()
         .and_then(|p| p.file_name())
         .and_then(|n| n.to_str())
-        .map(|s| s.to_string())
-        .unwrap_or_default();
-    let expected = match variant.as_str() {
-        "whisper-tiny-en" => 75,
-        "moonshine-tiny" => 50,
-        _ => 0,
-    };
+        .map(|s| {
+            let expected = match s {
+                "whisper-tiny-en" => ModelVariant::WhisperTinyEn.expected_size_mb(),
+                "moonshine-tiny" => ModelVariant::MoonshineTiny.expected_size_mb(),
+                _ => 0,
+            };
+            (s.to_string(), expected)
+        })
+        .unwrap_or_else(|| (String::new(), 0));
     let mut file_size_mb: u64 = 0;
     let mut ready = false;
     if let Some(ref p) = file {
@@ -597,6 +611,39 @@ pub fn delete_history_entry(id: i64) -> Result<bool, String> {
 #[tauri::command]
 pub fn clear_history() -> Result<i64, String> {
     history::clear().map_err(|e| e.to_string())
+}
+
+/// History auto-prune retention window in days.
+///
+/// - `Some(n)` for `n >= 1` → rows older than `n` days are auto-deleted.
+/// - `None` or `0` → "Never" (auto-prune disabled).
+///
+/// When the key is unset in settings (fresh install), the backend returns
+/// `None` and the frontend surfaces its default (2 days).
+#[tauri::command]
+pub fn get_history_retention_days() -> Option<u32> {
+    crate::config::load_history_retention_days()
+}
+
+/// Persist the history retention window. `None` or `0` disables auto-prune.
+#[tauri::command]
+pub fn set_history_retention_days(days: Option<u32>) -> Result<(), String> {
+    let n = match days {
+        None => 0,
+        Some(0) => 0,
+        Some(v) => {
+            // Reject nonsensical windows: keep a hard cap so a typo (or an IPC
+            // abuse attempt) can't pin the DB to "keep everything for 10 years".
+            if !(1..=365).contains(&v) {
+                return Err(format!(
+                    "history_retention_days must be between 1 and 365 (or 0/None to disable); got {v}"
+                ));
+            }
+            v
+        }
+    };
+    crate::config::save_history_retention_days(n);
+    Ok(())
 }
 
 // ---------- Dictionary IPC ------------------------------------------------

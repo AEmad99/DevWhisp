@@ -12,6 +12,13 @@ use anyhow::{anyhow, Context, Result};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
+static HTTP_CLIENT: once_cell::sync::Lazy<reqwest::Client> = once_cell::sync::Lazy::new(|| {
+    reqwest::Client::builder()
+        .user_agent("DevWhisp/0.1")
+        .build()
+        .expect("failed to build reqwest client")
+});
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModelVariant {
     /// Whisper tiny.en (English only) — ~75 MB, fastest, baseline accuracy.
@@ -29,6 +36,11 @@ impl ModelVariant {
     }
 
     pub fn approx_size_mb(&self) -> u32 {
+        self.expected_size_mb()
+    }
+
+    /// Expected on-disk size in MB for readiness validation.
+    pub fn expected_size_mb(&self) -> u32 {
         match self {
             Self::WhisperTinyEn => 75,
             Self::MoonshineTiny => 50,
@@ -227,12 +239,7 @@ where
     // gives comfortable headroom for any reasonable bundle.
     const MAX_DOWNLOAD_BYTES: u64 = 250 * 1_000_000;
 
-    let client = reqwest::Client::builder()
-        .user_agent("DevWhisp/0.1")
-        .build()
-        .context("failed to build reqwest client")?;
-
-    let resp = client
+    let resp = HTTP_CLIENT
         .get(url)
         .send()
         .await

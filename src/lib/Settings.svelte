@@ -41,6 +41,8 @@
     setPillSize,
     setPillPositionPreset,
     type PillPositionPreset,
+    getHistoryRetentionDays,
+    setHistoryRetentionDays,
     type AppInfo,
     type ModelStatus,
     type DictEntry,
@@ -141,6 +143,22 @@
 
   let recordingMode = $state<RecordingMode>('push-to-talk');
   let silenceMs = $state(600);
+
+  // History auto-prune window, in days. `null` = absent (fresh install) → the
+  // UI shows the default (2 days). `0` = "Never" (disabled). We keep a
+  // separate `retentionLoaded` flag so the segmented control doesn't flash the
+  // default before the real value arrives.
+  const RETENTION_OPTIONS = [
+    { days: 0, label: 'Never' },
+    { days: 1, label: '1 day' },
+    { days: 2, label: '2 days' },
+    { days: 7, label: '7 days' },
+    { days: 30, label: '30 days' },
+  ] as const;
+  const DEFAULT_RETENTION_DAYS = 2;
+  let historyRetentionDays = $state<number>(DEFAULT_RETENTION_DAYS);
+  let retentionLoaded = $state(false);
+  let retentionError = $state<string | null>(null);
 
   // Hotkey (rebindable from this view). The user picks one from a
   // predefined list — free-form text input was removed in 0.1.3 because
@@ -254,6 +272,18 @@
         pillHeight = clamp(Math.round(h), PILL_H_MIN, PILL_H_MAX);
       })
       .catch(() => {});
+
+    // History retention: `null` means the key is absent (fresh install), so we
+    // surface the default. `0` is a real value ("Never").
+    getHistoryRetentionDays()
+      .then((d) => {
+        historyRetentionDays = d === null ? DEFAULT_RETENTION_DAYS : d;
+        retentionLoaded = true;
+      })
+      .catch(() => {
+        historyRetentionDays = DEFAULT_RETENTION_DAYS;
+        retentionLoaded = true;
+      });
   });
 
   function persistPillStyle() {
@@ -343,6 +373,24 @@
       silenceMs = await getVadSilenceMs();
     } catch {
       /* keep default */
+    }
+  }
+
+  async function onRetentionChange(days: number) {
+    if (days === historyRetentionDays) return;
+    const prev = historyRetentionDays;
+    historyRetentionDays = days;
+    retentionError = null;
+    try {
+      // Persist the literal value: `0` = "Never" (explicitly disabled),
+      // `n >= 1` = keep `n` days. `null` would mean "unset" and fall back to
+      // the default on next read, so we never send null here.
+      await setHistoryRetentionDays(days);
+      // The post-insert pruner reads config fresh on every transcription, so
+      // no restart is needed for new recordings to honor the change.
+    } catch (e) {
+      historyRetentionDays = prev;
+      retentionError = formatIpcError(e as IpcError);
     }
   }
 
@@ -724,6 +772,32 @@
         </div>
       </div>
     {/if}
+
+    <div class="divider"></div>
+    <div class="row">
+      <div class="row-main">
+        <div class="row-title">Keep history for</div>
+        <div class="row-sub">
+          Older transcriptions are deleted automatically to free up space.
+          Default 2 days. “Never” keeps everything until you clear it manually.
+        </div>
+      </div>
+      <div class="row-ctl">
+        <div class="segmented" role="group" aria-label="History retention">
+          {#each RETENTION_OPTIONS as opt (opt.days)}
+            <button
+              type="button"
+              class:active={retentionLoaded && historyRetentionDays === opt.days}
+              disabled={!retentionLoaded}
+              onclick={() => onRetentionChange(opt.days)}
+            >{opt.label}</button>
+          {/each}
+        </div>
+        {#if retentionError}
+          <div class="row-error">{retentionError}</div>
+        {/if}
+      </div>
+    </div>
   </section>
 
   <!-- Performance / GPU-CPU adaptive -->

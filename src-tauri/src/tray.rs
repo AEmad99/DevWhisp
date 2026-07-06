@@ -109,47 +109,7 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
             }
             "stop" => {
                 log::info!("tray: stop");
-                if let Ok(samples) = crate::audio::stop_and_drain() {
-                    if !samples.is_empty() {
-                        let app_for_thread = app.clone();
-                        std::thread::spawn(move || {
-                            let duration_ms = (samples.len() as i64 * 1000) / 16_000;
-                            let rt = tokio::runtime::Builder::new_current_thread()
-                                .enable_all()
-                                .build()
-                                .unwrap();
-                            let raw =
-                                rt.block_on(async { crate::stt::transcribe_pcm_16k(&samples).await });
-                            if let Ok(t) = raw {
-                                if !t.is_empty() {
-                                    // Apply dictionary + formatting (consistent with hotkey + IPC).
-                                    // Use cached `list()` to avoid disk I/O on every tray stop.
-                                    let pairs = crate::dictionary::list()
-                                        .map(|entries| {
-                                            entries
-                                                .into_iter()
-                                                .map(|e| (e.from, e.to))
-                                                .collect::<Vec<_>>()
-                                        })
-                                        .unwrap_or_default();
-                                    let opts = crate::formatter::FormatOptions {
-                                        auto_capitalize: crate::config::load_bool("capitalize_first", true),
-                                        append_space: crate::config::load_bool("append_space", true),
-                                        dict: pairs,
-                                    };
-                                    let formatted = crate::formatter::format_transcript(&t, &opts);
-                                    if let Err(e) =
-                                        crate::history::insert(&formatted, Some(duration_ms), Some("ptt"))
-                                    {
-                                        log::warn!("history insert failed: {e:?}");
-                                    }
-                                    let _ = crate::inject::inject(&formatted);
-                                    let _ = &app_for_thread; // silence unused
-                                }
-                            }
-                        });
-                    }
-                }
+                let _ = crate::hotkey::stop_and_transcribe(&app);
             }
             "mode_toggle" => {
                 // Cycle push-to-talk -> toggle -> vad -> ptt (supports new VAD mode).

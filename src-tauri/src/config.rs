@@ -149,6 +149,40 @@ pub fn save_string(key: &str, value: &str) {
     save_value(key, serde_json::Value::String(value.to_string()));
 }
 
+/// Settings key holding the history retention window in days. Absent or `0`
+/// means "Never" (auto-prune disabled). Default for a fresh install is 2 days,
+/// surfaced via `DEFAULT_HISTORY_RETENTION_DAYS` rather than written to disk,
+/// so existing users' settings.json is never disturbed.
+pub const HISTORY_RETENTION_DAYS_KEY: &str = "history_retention_days";
+
+/// Retention (days) applied on a fresh install when the key is absent.
+pub const DEFAULT_HISTORY_RETENTION_DAYS: u32 = 2;
+
+/// Read the persisted history retention window in days.
+///
+/// Three states, kept distinct so callers can tell "fresh install" apart from
+/// "user turned pruning off":
+///   - **key absent** → `None`: caller falls back to
+///     `DEFAULT_HISTORY_RETENTION_DAYS` (fresh install = 2 days).
+///   - **key = 0** → `Some(0)`: explicitly disabled ("Never").
+///   - **key = n ≥ 1** → `Some(n)`: keep `n` days.
+pub fn load_history_retention_days() -> Option<u32> {
+    let raw = std::fs::read_to_string(settings_path())
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| v.get(HISTORY_RETENTION_DAYS_KEY).and_then(|x| x.as_u64()))?;
+    Some(raw as u32)
+}
+
+/// Persist the history retention window in days. Pass `0` to disable
+/// auto-pruning ("Never"). Best-effort; errors are logged, never fatal.
+pub fn save_history_retention_days(days: u32) {
+    save_value(
+        HISTORY_RETENTION_DAYS_KEY,
+        serde_json::Value::Number((days as u64).into()),
+    );
+}
+
 /// Merge a single key/value into settings.json (creating it from defaults if
 /// absent or malformed). Best-effort; errors are logged, never fatal.
 ///

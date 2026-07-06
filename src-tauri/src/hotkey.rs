@@ -486,12 +486,44 @@ pub fn on_press<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     Ok(())
 }
 
-/// Called when the push-to-talk hotkey is released.
-pub fn on_release<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
-    // Stop capture and pull the buffer.
+/// Serializes the stop-capture → transcribe → inject sequence across the
+/// hotkey release path, VAD auto-end, and tray stop. Prevents races where two
+/// stop signals process the same audio buffer twice.
+static STOP_TX_MUTEX: Mutex<()> = Mutex::new(());
+
+/// Stop capture and run the transcription/inject path. Call this instead of
+/// calling `stop_and_drain` + `transcribe_and_inject` directly.
+pub fn stop_and_transcribe<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
+    let _guard = STOP_TX_MUTEX.lock();
     let samples = crate::audio::stop_and_drain()?;
     transcribe_and_inject(app.clone(), samples);
     Ok(())
+}
+
+/// Called when the push-to-talk hotkey is released.
+pub fn on_release<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
+    stop_and_transcribe(app)
+}
+
+/// Fast, stable fingerprint for a PCM buffer. Used to suppress duplicate
+/// transcriptions when the same audio is stopped twice (race / duplicate event).
+fn audio_fingerprint(samples: &[f32]) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let n = samples.len();
+    if n == 0 {
+        return 0;
+    }
+    // Hash a sparse set of samples plus length. Exact match catches the
+    // duplicate-buffer case without hashing the entire (potentially long) clip.
+    let mut hasher = DefaultHasher::new();
+    n.hash(&mut hasher);
+    const SAMPLES: usize = 32;
+    for i in 0..SAMPLES {
+        let idx = (n * i) / SAMPLES;
+        samples[idx].to_bits().hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 /// Core transcription + inject path shared by manual release (ptt/toggle) and
@@ -501,6 +533,24 @@ pub(crate) fn transcribe_and_inject<R: Runtime>(app: AppHandle<R>, samples: Vec<
     if samples.is_empty() {
         emit_state(&app, "idle", None);
         return;
+    }
+
+    // Defensive dedupe: the same audio buffer should never be transcribed twice,
+    // but races between manual stop, VAD stop, and duplicate shortcut events can
+    // occasionally surface the same utterance twice. Skip if we saw this exact
+    // audio fingerprint very recently.
+    static LAST_AUDIO: Mutex<Option<(u64, Instant)>> = Mutex::new(None);
+    {
+        let mut last = LAST_AUDIO.lock();
+        let fp = audio_fingerprint(&samples);
+        if let Some((prev_fp, when)) = &*last {
+            if *prev_fp == fp && when.elapsed() < Duration::from_millis(1500) {
+                log::info!("skipping duplicate transcription (same audio fingerprint)");
+                emit_state(&app, "idle", None);
+                return;
+            }
+        }
+        *last = Some((fp, Instant::now()));
     }
 
     emit_state(&app, "processing", None);
@@ -636,8 +686,7 @@ fn spawn_vad_monitor<R: Runtime>(app: AppHandle<R>) {
                         energy_thresh,
                         silence_ms
                     );
-                    let samples = crate::audio::stop_and_drain().unwrap_or_default();
-                    transcribe_and_inject(app.clone(), samples);
+                    let _ = stop_and_transcribe(&app);
                     break;
                 }
 

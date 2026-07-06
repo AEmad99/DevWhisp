@@ -153,6 +153,23 @@ export const deleteHistoryEntry = (id: number): Promise<boolean> =>
 export const clearHistory = (): Promise<number> =>
   invokeOrThrow<number>('clear_history');
 
+/**
+ * History auto-prune retention window, in days.
+ *   - `n >= 1`  → rows older than `n` days are deleted automatically.
+ *   - `null`    → "Never" (auto-prune disabled). Also returned on a fresh
+ *                 install where the key is unset; the UI should treat `null`
+ *                 as its default (2 days) in that case.
+ */
+export type HistoryRetentionDays = number | null;
+
+export const getHistoryRetentionDays = (): Promise<HistoryRetentionDays> =>
+  invokeOrThrow<HistoryRetentionDays>('get_history_retention_days');
+
+export const setHistoryRetentionDays = (
+  days: HistoryRetentionDays,
+): Promise<void> =>
+  invokeOrThrow<void>('set_history_retention_days', { days });
+
 // ---------------------------------------------------------------------------
 // Dictionary commands (added by track C)
 // ---------------------------------------------------------------------------

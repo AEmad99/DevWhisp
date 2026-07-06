@@ -118,7 +118,12 @@ pub fn start() -> Result<()> {
     // Clear any prior buffer the previous thread may have left behind.
     // (The previous thread is still draining its resampler — see below —
     // so we explicitly clear here so its trailing flush is dropped.)
-    CAPTURED.lock().clear();
+    // Pre-allocate capacity for a 30s @ 16kHz recording to avoid reallocations.
+    {
+        let mut buf = CAPTURED.lock();
+        buf.clear();
+        buf.reserve(30 * 16_000);
+    }
 
     // Spawn the capture thread. The thread owns its own `active` Arc clone.
     let captured = CAPTURED.clone();

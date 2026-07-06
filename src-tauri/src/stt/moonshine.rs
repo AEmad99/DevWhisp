@@ -10,7 +10,7 @@ use std::collections::HashMap;
 #[cfg(feature = "moonshine")]
 use ort::session::Session;
 #[cfg(feature = "moonshine")]
-use tokio::sync::Mutex as AsyncMutex;
+use parking_lot::Mutex;
 
 #[cfg(feature = "moonshine")]
 const DEC_START: i64 = 1;
@@ -24,7 +24,16 @@ const KV_HEADS: usize = 8;
 const HEAD_D: usize = 36;
 
 #[cfg(feature = "moonshine")]
-static SESS: once_cell::sync::OnceCell<AsyncMutex<Option<Loaded>>> = once_cell::sync::OnceCell::new();
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Provider {
+    Cpu,
+    Cuda,
+    DirectML,
+}
+
+#[cfg(feature = "moonshine")]
+static SESS: once_cell::sync::Lazy<Mutex<Option<Loaded>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(None));
 
 #[cfg(feature = "moonshine")]
 struct Loaded {
@@ -32,6 +41,7 @@ struct Loaded {
     dec: Session,
     vocab: HashMap<u32, String>,
     specials: Vec<u32>,
+    provider: Provider,
 }
 
 pub async fn transcribe(samples: &[f32]) -> Result<String> {
@@ -66,30 +76,99 @@ pub async fn transcribe(samples: &[f32]) -> Result<String> {
 fn stub(s: &[f32]) -> String { format!("[moonshine-stub:{:.1}s]", s.len() as f32 / 16000.) }
 
 #[cfg(feature = "moonshine")]
-async fn load_and_infer(ep: &std::path::Path, dp: &std::path::Path, tp: &std::path::Path, samples: &[f32]) -> Result<String> {
-    let mutex = SESS.get_or_init(|| AsyncMutex::new(None));
-    let mut guard = mutex.lock().await;
-
-    if guard.is_none() {
-        log::info!("Loading real Moonshine ONNX sessions from {:?}", ep.parent());
-        let enc = Session::builder()?.commit_from_file(ep)?;
-        let dec = Session::builder()?.commit_from_file(dp)?;
-        let (vocab, specials) = load_tok(tp)?;
-        *guard = Some(Loaded { enc, dec, vocab, specials });
-        log::info!("Moonshine sessions loaded successfully");
+fn desired_provider() -> Provider {
+    use ort::ep::{self, ExecutionProvider};
+    let mode = crate::config::load_string("acceleration_mode").unwrap_or_else(|| "auto".to_string());
+    if mode == "cpu" {
+        return Provider::Cpu;
     }
-
-    let ld = guard.as_mut().unwrap();
-    infer(ld, samples)
+    if ep::CUDA::default().is_available().unwrap_or(false) {
+        return Provider::Cuda;
+    }
+    if cfg!(target_os = "windows") && ep::DirectML::default().is_available().unwrap_or(false) {
+        return Provider::DirectML;
+    }
+    if mode == "gpu" {
+        log::warn!("GPU acceleration requested but no CUDA/DirectML provider is available; falling back to CPU");
+    }
+    Provider::Cpu
 }
 
-/// Reset the loaded Moonshine sessions (supports switching models).
+#[cfg(feature = "moonshine")]
+fn build_onnx_session(path: &std::path::Path, provider: Provider) -> Result<Session> {
+    use ort::ep::{CUDA, DirectML, CPUExecutionProvider};
+    let mut builder = Session::builder()?;
+    match provider {
+        Provider::Cuda => {
+            builder = builder
+                .with_execution_providers([CUDA::default().build()])
+                .map_err(|e| anyhow!("failed to configure CUDA execution provider: {e}"))?;
+        }
+        Provider::DirectML => {
+            builder = builder
+                .with_execution_providers([DirectML::default().build()])
+                .map_err(|e| anyhow!("failed to configure DirectML execution provider: {e}"))?;
+        }
+        Provider::Cpu => {
+            builder = builder
+                .with_execution_providers([CPUExecutionProvider::default().build()])
+                .map_err(|e| anyhow!("failed to configure CPU execution provider: {e}"))?;
+        }
+    }
+    Ok(builder.commit_from_file(path)?)
+}
+
+#[cfg(feature = "moonshine")]
+async fn load_and_infer(ep: &std::path::Path, dp: &std::path::Path, tp: &std::path::Path, samples: &[f32]) -> Result<String> {
+    let provider = desired_provider();
+
+    // Fast path: already loaded with the desired provider.
+    {
+        let mut guard = SESS.lock();
+        if let Some(ref loaded) = *guard {
+            if loaded.provider == provider {
+                return infer(guard.as_mut().unwrap(), samples);
+            }
+            log::info!("Moonshine provider changed {:?} -> {:?}; sessions will be rebuilt", loaded.provider, provider);
+            *guard = None;
+        }
+    }
+
+    // Build sessions outside the lock so file I/O doesn't block other callers.
+    log::info!("Loading real Moonshine ONNX sessions from {:?} using provider {:?}", ep.parent(), provider);
+    let enc = build_onnx_session(ep, provider)?;
+    let dec = build_onnx_session(dp, provider)?;
+    let (vocab, specials) = load_tok(tp)?;
+
+    {
+        let mut guard = SESS.lock();
+        // If another thread loaded while we were building, prefer its loaded
+        // sessions only if the provider still matches; otherwise overwrite.
+        if let Some(ref loaded) = *guard {
+            if loaded.provider == provider {
+                return infer(guard.as_mut().unwrap(), samples);
+            }
+        }
+        *guard = Some(Loaded { enc, dec, vocab, specials, provider });
+        log::info!("Moonshine sessions loaded successfully");
+        infer(guard.as_mut().unwrap(), samples)
+    }
+}
+
+/// Reset the loaded Moonshine sessions so the next transcription rebuilds them
+/// with the current acceleration mode / provider.
 #[cfg(feature = "moonshine")]
 pub fn reset() {
-    // OnceCell + AsyncMutex: on app restart it will reload based on new active.txt.
-    // For hot-swap during run, a full clear would require more complex reloading.
-    // Reboot after set_active_model is sufficient and reliable.
-    log::info!("moonshine model switch requested - restart app to load new model");
+    let mut guard = SESS.lock();
+    if guard.is_some() {
+        *guard = None;
+        log::info!("moonshine sessions reset; next inference will reload with current provider");
+    }
+}
+
+#[cfg(not(feature = "moonshine"))]
+pub fn reset() {
+    log::info!("moonshine reset: no-op because moonshine feature is not enabled");
 }
 
 fn normalize(s: &[f32]) -> Vec<f32> {

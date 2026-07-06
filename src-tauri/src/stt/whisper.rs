@@ -129,13 +129,10 @@ pub fn transcribe(samples: &[f32]) -> Result<String> {
     params.set_no_context(true);
     params.set_single_segment(true);
 
-    // Use the machine's cores. Whisper was previously pinned to 4 threads;
-    // whisper-tiny scales well up to ~physical-core count, so use the logical
-    // count capped at 8 (avoids hyper-thread oversubscription on big CPUs).
-    let n_threads = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4)
-        .clamp(2, 8) as i32;
+    // Use physical cores for whisper-tiny. Hyper-threads share execution units
+    // and don't help ALU-bound decoder work; using logical cores often
+    // oversubscribes and slows things down. Cap at 8 for sanity on HEDT.
+    let n_threads = num_cpus::get_physical().clamp(2, 8) as i32;
     params.set_n_threads(n_threads);
 
     // The whisper encoder is a *fixed* cost: it always processes a 30 s mel
@@ -257,7 +254,7 @@ mod bench {
         let logical = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
-        let new_threads = logical.clamp(2, 8) as i32;
+        let new_threads = num_cpus::get_physical().clamp(2, 8) as i32;
         for secs in [3.0_f32, 6.0, 11.0] {
             let audio = gen_audio(secs);
             let _ = time_one(&ctx, &audio, 4, 0); // warm caches

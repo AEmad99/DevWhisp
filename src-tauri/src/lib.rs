@@ -110,6 +110,19 @@ pub fn run() {
                 })
                 .ok();
 
+            // Auto-prune old transcription history on startup so history.db
+            // never grows without bound. Honors the persisted retention window
+            // (default 2 days; 0 / "Never" disables). Runs on a background
+            // thread so it never blocks the setup hook or the first hotkey.
+            std::thread::Builder::new()
+                .name("devwhisp-history-prune".to_string())
+                .spawn(|| {
+                    if let Err(e) = history::prune_if_needed() {
+                        log::warn!("history startup prune failed: {e:?}");
+                    }
+                })
+                .ok();
+
             log::info!("DevWhisp setup complete");
             Ok(())
         })
@@ -127,6 +140,8 @@ pub fn run() {
             ipc::search_history,
             ipc::delete_history_entry,
             ipc::clear_history,
+            ipc::get_history_retention_days,
+            ipc::set_history_retention_days,
             ipc::get_dictionary,
             ipc::add_dictionary_entry,
             ipc::remove_dictionary_entry,

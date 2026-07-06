@@ -10,11 +10,13 @@
     getModelStatus,
     getRecordingMode,
     getHotkey,
+    getAccelerationInfo,
     listHistory,
     downloadModel,
     type ModelStatus,
     type RecordingMode,
     type HistoryEntry,
+    type AccelerationInfo,
   } from './api';
   import AppIcon from './AppIcon.svelte';
 
@@ -28,6 +30,7 @@
   /** Same string split into segments for rendering each segment as <kbd>. */
   let hotkeyKeys = $derived(hotkeyLabel.split('+').map((s) => s.trim()).filter(Boolean));
   let modelStatus = $state<ModelStatus | null>(null);
+  let accelInfo = $state<AccelerationInfo | null>(null);
   let entries = $state<HistoryEntry[]>([]);
   let busy = $state(false);
   let downloadMsg = $state<string | null>(null);
@@ -83,6 +86,11 @@
       /* ignore */
     }
     try {
+      accelInfo = await getAccelerationInfo();
+    } catch {
+      /* ignore */
+    }
+    try {
       mode = await getRecordingMode();
     } catch {
       /* ignore */
@@ -117,7 +125,6 @@
     refresh();
     let unlistenLevel: UnlistenFn | null = null;
     let unlistenState: UnlistenFn | null = null;
-    let decay: number | null = null;
 
     // Guarded: outside a Tauri runtime `listen` throws synchronously; the
     // live meter/state are optional, so never let that take down the view.
@@ -139,14 +146,19 @@
       /* no Tauri bridge — fine */
     }
 
-    decay = window.setInterval(() => {
-      if (audioLevel > 0) applyLevel(Math.max(0, audioLevel - 0.08));
-    }, 90);
+    let decayRaf: number | null = null;
+    const decayStep = () => {
+      if (audioLevel > 0) {
+        applyLevel(Math.max(0, audioLevel - 0.02));
+      }
+      decayRaf = requestAnimationFrame(decayStep);
+    };
+    decayRaf = requestAnimationFrame(decayStep);
 
     return () => {
       if (unlistenLevel) unlistenLevel();
       if (unlistenState) unlistenState();
-      if (decay !== null) window.clearInterval(decay);
+      if (decayRaf !== null) cancelAnimationFrame(decayRaf);
     };
   });
 </script>
@@ -194,7 +206,7 @@
       <div class="mini-label">Model</div>
       {#if modelStatus?.ready}
         <div class="mini-value ok">● {modelStatus.variant}</div>
-        <div class="mini-sub">{modelStatus.fileSizeMb} MB · downloaded · CPU</div>
+        <div class="mini-sub">{modelStatus.fileSizeMb} MB · downloaded · {accelInfo?.inUse ?? 'CPU'}</div>
       {:else if modelStatus}
         <div class="mini-value warn">incomplete</div>
         <button class="link" onclick={downloadModelNow} disabled={busy}>Re-download</button>

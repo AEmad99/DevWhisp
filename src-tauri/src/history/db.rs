@@ -160,6 +160,19 @@ pub fn clear() -> Result<i64> {
     })
 }
 
+/// Delete every row whose `created_at` is older than `cutoff_ms` (Unix epoch
+/// milliseconds). Returns the number of rows removed. Used by the auto-prune
+/// flow so old transcriptions don't accumulate in `history.db` indefinitely.
+pub fn delete_older_than(cutoff_ms: i64) -> Result<i64> {
+    with_conn(|conn| {
+        let n = conn.execute(
+            "DELETE FROM transcriptions WHERE created_at < ?1",
+            params![cutoff_ms],
+        )?;
+        Ok(n as i64)
+    })
+}
+
 /// Unix epoch in milliseconds — central helper so tests can mock it later
 /// if we ever need to.
 fn now_ms() -> i64 {
@@ -267,6 +280,56 @@ mod tests {
             assert_eq!(list(10, 0).unwrap().len(), 0);
             // Idempotent: clearing an empty table is fine.
             assert_eq!(clear().unwrap(), 0);
+        });
+    }
+
+    #[test]
+    fn delete_older_than_removes_only_old_rows() {
+        with_temp_db(|| {
+            // Backdate rows by inserting them, then rewriting created_at.
+            // Three rows: "old" (3 days ago), "edge" (exactly 2 days ago),
+            // and "recent" (now). Cutoff is "2 days ago": rows strictly older
+            // than the cutoff must go; the edge row (== cutoff) survives.
+            let now = now_ms();
+            let two_days_ms: i64 = 2 * 24 * 60 * 60 * 1000;
+            let cutoff = now - two_days_ms;
+
+            let id_old = insert("old", Some(10), Some("ptt")).unwrap();
+            let id_edge = insert("edge", Some(20), Some("ptt")).unwrap();
+            let id_recent = insert("recent", Some(30), Some("ptt")).unwrap();
+
+            // Rewrite timestamps directly via a raw connection is overkill;
+            // instead reuse `with_conn` to UPDATE created_at on the inserted rows.
+            {
+                use rusqlite::Connection;
+                // Touch the shared handle the same way the public API does so
+                // we mutate the same DB the inserts landed in.
+                let rewrite = |conn: &mut Connection, id: i64, ts: i64| -> rusqlite::Result<()> {
+                    conn.execute(
+                        "UPDATE transcriptions SET created_at = ?1 WHERE id = ?2",
+                        params![ts, id],
+                    )?;
+                    Ok(())
+                };
+                // We need access to the shared connection. Reuse the private
+                // `with_conn` helper (same module) — tests are part of the
+                // module so they can call it.
+                let _ = with_conn(|conn| {
+                    rewrite(conn, id_old, now - 3 * 24 * 60 * 60 * 1000)?;
+                    rewrite(conn, id_edge, cutoff)?; // exactly at the cutoff
+                    rewrite(conn, id_recent, now)?; // untouched by insert already
+                    Ok(())
+                });
+            }
+
+            let removed = delete_older_than(cutoff).unwrap();
+            assert_eq!(removed, 1, "only the strictly-older row should be removed");
+
+            let rows = list(10, 0).unwrap();
+            let texts: Vec<&str> = rows.iter().map(|r| r.text.as_str()).collect();
+            assert!(texts.contains(&"edge"), "edge row (== cutoff) must survive");
+            assert!(texts.contains(&"recent"), "recent row must survive");
+            assert!(!texts.contains(&"old"), "old row should have been pruned");
         });
     }
 

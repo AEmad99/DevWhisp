@@ -18,6 +18,7 @@
 	  import { getCurrentWindow } from '@tauri-apps/api/window';
 	  import { invoke } from '@tauri-apps/api/core';
 	  import BrandMark from './BrandMark.svelte';
+	  import { getHotkey } from './api';
 
   type PillStateValue = 'idle' | 'listening' | 'processing' | 'success' | 'error';
 
@@ -55,6 +56,11 @@
 
   /** Smoothed amplitudes that drive the live sound wave. */
   let waveSamples = $state<number[]>(Array(WAVE_SAMPLES).fill(0.08));
+
+  /** Canonical display form of the active hotkey, shown briefly after success. */
+  let currentHotkey = $state('Ctrl+Shift+Space');
+  let showHotkeyHint = $state(false);
+  let hotkeyHintTimer: number | null = null;
 
   let unlistenLevel: UnlistenFn | null = null;
   let unlistenState: UnlistenFn | null = null;
@@ -278,6 +284,12 @@
     }
 
     try {
+      currentHotkey = await getHotkey();
+    } catch (e) {
+      console.warn('getHotkey failed', e);
+    }
+
+    try {
       unlistenStyle = await listen<PillStyle>('pill-style', (event) => {
         applyStyle(event.payload);
       });
@@ -295,6 +307,7 @@
     try {
       unlistenState = await listen<PillStatePayload>('pill-state', (event) => {
         const next = event.payload?.state ?? 'idle';
+        const prev = pillState;
 
         pillState = next;
         errorMessage = event.payload?.message ?? null;
@@ -305,8 +318,13 @@
           startWaveLoop();
         } else {
           stopWaveLoop();
-          if (next === 'idle' || next === 'error') {
-            // compact status only
+          if (next === 'idle' && prev === 'success') {
+            // Fleeting hotkey reminder after a successful paste.
+            showHotkeyHint = true;
+            if (hotkeyHintTimer !== null) window.clearTimeout(hotkeyHintTimer);
+            hotkeyHintTimer = window.setTimeout(() => {
+              showHotkeyHint = false;
+            }, 2000);
           }
         }
       });
@@ -336,6 +354,7 @@
     if (unlistenState) unlistenState();
     if (unlistenStyle) unlistenStyle();
     if (unlistenSize) unlistenSize();
+    if (hotkeyHintTimer !== null) window.clearTimeout(hotkeyHintTimer);
     cleanupDrag();
   });
 </script>
@@ -413,6 +432,9 @@
         <span class="dot idle" aria-hidden="true"></span>
       </div>
       <div class="label">Ready</div>
+      {#if showHotkeyHint}
+        <span class="hotkey-hint">{currentHotkey}</span>
+      {/if}
     </button>
   {/if}
 </div>
@@ -694,6 +716,29 @@
     outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 999px;
+  }
+  .hotkey-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    background: rgba(20, 16, 30, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 8px;
+    opacity: 0;
+    pointer-events: none;
+    animation: hint-fade 2s ease-out forwards;
+    white-space: nowrap;
+  }
+  @keyframes hint-fade {
+    0% { opacity: 0; transform: translate(-50%, -40%); }
+    12% { opacity: 1; transform: translate(-50%, -50%); }
+    70% { opacity: 1; transform: translate(-50%, -50%); }
+    100% { opacity: 0; transform: translate(-50%, -60%); }
   }
 
   /* --- Refinements ------------------------------------------------------- */

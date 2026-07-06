@@ -42,11 +42,11 @@
   }
 
   /** Tiny global toast queue for IPC errors. One at a time, 4s timeout. */
-  let toast = $state<{ id: number; message: string } | null>(null);
+  let toast = $state<{ id: number; message: string; type: 'error' | 'success' | 'info' } | null>(null);
 
-  function showToast(message: string) {
+  function showToast(message: string, type: 'error' | 'success' | 'info' = 'error') {
     const id = Date.now() + Math.random();
-    toast = { id, message };
+    toast = { id, message, type };
     window.setTimeout(() => {
       if (toast && toast.id === id) toast = null;
     }, 4000);
@@ -55,11 +55,11 @@
   /** Surface any uncaught IPC failure to the toast layer. */
   function handleGlobalError(err: unknown) {
     if (err && typeof err === 'object' && 'kind' in err) {
-      showToast(formatIpcError(err as IpcError));
+      showToast(formatIpcError(err as IpcError), 'error');
     } else if (err instanceof Error) {
-      showToast(err.message);
+      showToast(err.message, 'error');
     } else if (typeof err === 'string') {
-      showToast(err);
+      showToast(err, 'error');
     }
   }
 
@@ -201,7 +201,13 @@
   </main>
 
   {#if toast}
-    <div class="toast" role="status" aria-live="polite">
+    <div
+      class="toast"
+      class:toast-success={toast.type === 'success'}
+      class:toast-info={toast.type === 'info'}
+      role="status"
+      aria-live="polite"
+    >
       <span class="toast-dot"></span>
       <span class="toast-msg">{toast.message}</span>
       <button
@@ -360,12 +366,24 @@
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     animation: toast-in 220ms ease-out;
   }
+  .toast.toast-success {
+    border-color: var(--ok);
+  }
+  .toast.toast-info {
+    border-color: var(--accent);
+  }
   .toast-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: var(--danger);
     flex-shrink: 0;
+  }
+  .toast-success .toast-dot {
+    background: var(--ok);
+  }
+  .toast-info .toast-dot {
+    background: var(--accent);
   }
   .toast-msg {
     flex: 1;
@@ -386,6 +404,42 @@
   @keyframes toast-in {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Responsive breakpoints */
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 64px 1fr; }
+    .dock {
+      min-width: 64px;
+      align-items: center;
+      padding: 20px 8px 16px;
+    }
+    .dock-brand { justify-content: center; padding: 4px 0 8px; }
+    .dock-name, .dock-item-label { display: none; }
+    .dock-nav { padding: 0; align-items: center; }
+    .dock-item { justify-content: center; padding: 10px; }
+    .dock-item.active::before { top: 4px; bottom: 4px; }
+    .dock-footer { text-align: center; padding: 12px 4px 0; }
+  }
+  @media (max-width: 600px) {
+    .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .dock {
+      flex-direction: row;
+      height: auto;
+      position: static;
+      width: 100%;
+      min-width: auto;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+      gap: 12px;
+      align-items: center;
+    }
+    .dock-brand { padding: 0; }
+    .dock-nav { flex-direction: row; flex: 1; justify-content: center; gap: 4px; }
+    .dock-item { width: auto; padding: 8px 12px; }
+    .dock-footer { display: none; }
+    .content { height: auto; }
   }
 
 </style>
