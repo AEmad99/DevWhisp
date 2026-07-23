@@ -221,7 +221,7 @@
   <header class="hist-header">
     <div>
       <h1>History</h1>
-      <p class="muted">Every transcription you've produced, newest first.</p>
+      <p class="muted">Your transcriptions, newest first.</p>
     </div>
     <div class="header-actions">
       <button onclick={clearAll} disabled={busy || entries.length === 0} class="danger">
@@ -338,70 +338,69 @@
   .history {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
   }
 
   .hist-header {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 18px;
+    gap: 12px;
     flex-wrap: wrap;
-    padding: 8px 0 4px;
+    padding: 2px 0;
   }
 
   h1 {
     margin: 0;
-    font-size: 24px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 650;
     letter-spacing: -0.02em;
     color: var(--text);
   }
-  .muted { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+  .muted { color: var(--muted); font-size: 11.5px; margin: 2px 0 0; }
 
   .card {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px 20px;
+    border-radius: var(--r-md);
+    padding: 10px 12px;
   }
 
   .search-card {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
   }
   .search-card input {
     flex: 1;
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     color: var(--text);
-    border-radius: 8px;
-    padding: 9px 12px;
-    font-size: 14px;
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-size: 13px;
     font-family: inherit;
     outline: none;
-    transition: border-color 150ms ease;
+    transition: border-color 140ms ease;
   }
   .search-card input:focus { border-color: var(--accent); }
 
-  /* Time-filter chips */
   .filter-chips {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
   }
   .chip {
     background: var(--card);
     border: 1px solid var(--border);
     color: var(--muted);
-    padding: 5px 14px;
+    padding: 4px 10px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     font-family: inherit;
     cursor: pointer;
-    transition: all 140ms ease;
+    transition: all 120ms ease;
   }
   .chip:hover { color: var(--text); border-color: var(--accent); }
   .chip.active {
@@ -410,16 +409,15 @@
     color: var(--accent);
   }
 
-  /* Stats footer */
   .hist-footer {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 14px 4px 4px;
+    gap: 6px;
+    padding: 10px 2px 2px;
     border-top: 1px solid var(--border);
-    margin-top: 4px;
+    margin-top: 2px;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 11px;
     font-family: ui-monospace, "JetBrains Mono", monospace;
   }
   .hist-footer strong { color: var(--text); font-weight: 600; }
@@ -431,25 +429,24 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
   }
 
   .entry {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 14px 16px;
+    border-radius: var(--r-md);
+    padding: 10px 12px;
     display: flex;
-    gap: 14px;
+    gap: 10px;
     align-items: flex-start;
-    transition: border-color 150ms ease;
+    transition: border-color 140ms ease, background 140ms ease;
   }
-  .entry:hover { border-color: var(--accent); }
+  .entry:hover { border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 
   .entry-main {
     flex: 1;
     min-width: 0;
-    /* It's a button — strip the default chrome. */
     background: transparent;
     border: none;
     padding: 0;
@@ -463,27 +460,27 @@
   .entry-meta {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 11px;
+    gap: 5px;
+    font-size: 10.5px;
     color: var(--muted);
     font-family: ui-monospace, "JetBrains Mono", monospace;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
   .entry-meta .time { color: var(--accent); }
   .entry-meta .dot { opacity: 0.5; }
   .source-tag {
-    margin-left: 6px;
-    padding: 1px 6px;
+    margin-left: 4px;
+    padding: 1px 5px;
     border-radius: 999px;
     background: var(--accent-soft);
     color: var(--accent);
-    font-size: 10px;
+    font-size: 9px;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
   }
   .entry-text {
-    font-size: 14px;
-    line-height: 1.45;
+    font-size: 13px;
+    line-height: 1.4;
     color: var(--text);
     overflow-wrap: break-word;
   }
@@ -493,7 +490,7 @@
 
   .entry-actions {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     flex-shrink: 0;
   }
 
@@ -501,12 +498,12 @@
     background: var(--card);
     color: var(--text);
     border: 1px solid var(--border);
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 12px;
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 11px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 150ms ease;
+    transition: all 130ms ease;
     font-family: inherit;
   }
   button:hover:not(:disabled) { border-color: var(--accent); }
@@ -519,45 +516,44 @@
   button.danger:disabled { background: var(--danger); }
   button.danger-outline {
     color: var(--danger);
-    border-color: rgba(255, 92, 124, 0.4);
+    border-color: rgba(255, 107, 138, 0.4);
   }
   button.danger-outline:hover:not(:disabled) {
-    background: rgba(255, 92, 124, 0.1);
+    background: rgba(255, 107, 138, 0.1);
     border-color: var(--danger);
   }
 
-  /* Empty state */
   .empty {
     text-align: center;
-    padding: 48px 20px;
+    padding: 36px 16px;
   }
   .empty-icon {
     color: var(--muted);
-    opacity: 0.35;
-    margin-bottom: 14px;
+    opacity: 0.3;
+    margin-bottom: 10px;
   }
   .empty p {
     margin: 0;
     color: var(--muted);
-    font-size: 14px;
+    font-size: 13px;
   }
   .empty kbd {
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: 4px;
-    padding: 1px 6px;
+    padding: 1px 5px;
     font-family: ui-monospace, "JetBrains Mono", monospace;
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--text);
   }
 
   .error {
     border-color: var(--danger);
-    background: rgba(255, 92, 124, 0.06);
+    background: rgba(255, 107, 138, 0.06);
     color: var(--danger);
     font-family: ui-monospace, "JetBrains Mono", monospace;
-    font-size: 13px;
-    padding: 14px 18px;
+    font-size: 12px;
+    padding: 10px 12px;
     border-left-width: 3px;
   }
   .error strong { color: var(--danger); }

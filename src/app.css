@@ -1,110 +1,112 @@
-/* DevWhisp base styles + global design tokens. Component-specific styles live in App.svelte. */
+/* DevWhisp base styles + global design tokens. Precision dark desktop aesthetic. */
 
 :root {
   color-scheme: dark;
-  /* Background palette */
-  --bg: #0a0712;
-  --bg-elevated: #14101e;
+  /* Background palette — crisp architectural dark */
+  --bg: #090a0d;
+  --bg-elevated: #111216;
+  --bg-elevated-2: #16171d;
   /* Text palette */
-  --text: #f3f0fb;
-  --muted: #a09bb6;
-  --faint: #6f6982;
-  /* Brand accent (the violet voice waves) */
-  --accent: #c4b5fd;
+  --text: #f3f4f6;
+  --muted: #9ca3af;
+  --faint: #6b7280;
+  /* Brand accent — crisp solid violet */
+  --accent: #a78bfa;
   --accent-deep: #7c3aed;
-  --accent-soft: rgba(124, 58, 237, 0.16);
-  --accent-glow: rgba(124, 58, 237, 0.45);
+  --accent-rgb: 124, 58, 237;
+  --accent-soft: rgba(124, 58, 237, 0.12);
+  --accent-glow: rgba(0, 0, 0, 0);
   /* Status colors */
-  --ok: #5cff9c;
-  --warn: #ffb45c;
-  --danger: #ff5c7c;
+  --ok: #34d399;
+  --warn: #fbbf24;
+  --danger: #f87171;
   /* Surfaces / borders */
-  --card: #16121f;
-  --card-2: #1b1626;
-  --card-hover: #1d1729;
-  --border: #2a2438;
-  --border-strong: #3a3350;
-  /* Radius scale */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 22px;
+  --card: #141519;
+  --card-2: #18191e;
+  --card-hover: #1c1d23;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  /* Radius scale — modern, tight */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
   /* Elevation */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.28);
-  --shadow-3: 0 18px 48px rgba(0, 0, 0, 0.45);
-  --shadow-accent: 0 8px 28px rgba(124, 58, 237, 0.28);
-  /* Brand gradient — reused across hero marks, primary buttons, accents */
-  --brand-gradient: linear-gradient(135deg, #c4b5fd 0%, #7c3aed 100%);
-  /* Font scale multiplier (1 = 100%). Driven from Settings via
-     <html style="--font-scale: ...">. Default 1, can be 0.80 – 1.25. */
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-accent: 0 4px 12px rgba(0, 0, 0, 0.35);
+  /* Brand solid accent */
+  --brand-gradient: var(--accent-deep);
   --font-scale: 1;
 }
 
-/* html font-size is the lever that scales every `em`/`rem` and every
-   `13px`/`14px` literal in component styles via inherit. */
 html {
   font-size: calc(16px * var(--font-scale));
 }
 
-/* Accent color palettes. Apply by setting `<html data-accent="...">`.
-   Each variant overrides the four accent tokens + the brand gradient so
-   every component that reads `var(--accent*)` updates live. */
 :root[data-accent="violet"] {
-  --accent: #c4b5fd;
+  --accent: #a78bfa;
   --accent-deep: #7c3aed;
-  --accent-soft: rgba(124, 58, 237, 0.16);
-  --accent-glow: rgba(124, 58, 237, 0.45);
-  --brand-gradient: linear-gradient(135deg, #c4b5fd 0%, #7c3aed 100%);
-  --shadow-accent: 0 8px 28px rgba(124, 58, 237, 0.28);
+  --accent-rgb: 124, 58, 237;
+  --accent-soft: rgba(124, 58, 237, 0.12);
+  --accent-glow: rgba(0, 0, 0, 0);
+  --brand-gradient: #7c3aed;
+  --shadow-accent: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 :root[data-accent="blue"] {
-  --accent: #93c5fd;
-  --accent-deep: #3b82f6;
-  --accent-soft: rgba(59, 130, 246, 0.18);
-  --accent-glow: rgba(59, 130, 246, 0.45);
-  --brand-gradient: linear-gradient(135deg, #93c5fd 0%, #3b82f6 100%);
-  --shadow-accent: 0 8px 28px rgba(59, 130, 246, 0.28);
+  --accent: #60a5fa;
+  --accent-deep: #2563eb;
+  --accent-rgb: 37, 99, 235;
+  --accent-soft: rgba(37, 99, 235, 0.14);
+  --accent-glow: rgba(0, 0, 0, 0);
+  --brand-gradient: #2563eb;
+  --shadow-accent: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 :root[data-accent="cyan"] {
-  --accent: #67e8f9;
-  --accent-deep: #06b6d4;
-  --accent-soft: rgba(6, 182, 212, 0.18);
-  --accent-glow: rgba(6, 182, 212, 0.45);
-  --brand-gradient: linear-gradient(135deg, #67e8f9 0%, #06b6d4 100%);
-  --shadow-accent: 0 8px 28px rgba(6, 182, 212, 0.28);
+  --accent: #38bdf8;
+  --accent-deep: #0284c7;
+  --accent-rgb: 2, 132, 199;
+  --accent-soft: rgba(2, 132, 199, 0.14);
+  --accent-glow: rgba(0, 0, 0, 0);
+  --brand-gradient: #0284c7;
+  --shadow-accent: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 :root[data-accent="green"] {
-  --accent: #6ee7b7;
-  --accent-deep: #10b981;
-  --accent-soft: rgba(16, 185, 129, 0.18);
-  --accent-glow: rgba(16, 185, 129, 0.45);
-  --brand-gradient: linear-gradient(135deg, #6ee7b7 0%, #10b981 100%);
-  --shadow-accent: 0 8px 28px rgba(16, 185, 129, 0.28);
+  --accent: #34d399;
+  --accent-deep: #059669;
+  --accent-rgb: 5, 150, 105;
+  --accent-soft: rgba(5, 150, 105, 0.14);
+  --accent-glow: rgba(0, 0, 0, 0);
+  --brand-gradient: #059669;
+  --shadow-accent: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 :root[data-accent="pink"] {
-  --accent: #f9a8d4;
-  --accent-deep: #ec4899;
-  --accent-soft: rgba(236, 72, 153, 0.18);
-  --accent-glow: rgba(236, 72, 153, 0.45);
-  --brand-gradient: linear-gradient(135deg, #f9a8d4 0%, #ec4899 100%);
-  --shadow-accent: 0 8px 28px rgba(236, 72, 153, 0.28);
+  --accent: #f472b6;
+  --accent-deep: #db2777;
+  --accent-rgb: 219, 39, 119;
+  --accent-soft: rgba(219, 39, 119, 0.14);
+  --accent-glow: rgba(0, 0, 0, 0);
+  --brand-gradient: #db2777;
+  --shadow-accent: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 :root[data-accent="orange"] {
-  --accent: #fdba74;
-  --accent-deep: #f97316;
-  --accent-soft: rgba(249, 115, 22, 0.18);
-  --accent-glow: rgba(249, 115, 22, 0.45);
-  --brand-gradient: linear-gradient(135deg, #fdba74 0%, #f97316 100%);
-  --shadow-accent: 0 8px 28px rgba(249, 115, 22, 0.28);
+  --accent: #fb923c;
+  --accent-deep: #ea580c;
+  --accent-rgb: 234, 88, 12;
+  --accent-soft: rgba(234, 88, 12, 0.14);
+  --accent-glow: rgba(0, 0, 0, 0);
+  --brand-gradient: #ea580c;
+  --shadow-accent: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 :root[data-accent="red"] {
-  --accent: #fca5a5;
-  --accent-deep: #ef4444;
-  --accent-soft: rgba(239, 68, 68, 0.18);
-  --accent-glow: rgba(239, 68, 68, 0.45);
-  --brand-gradient: linear-gradient(135deg, #fca5a5 0%, #ef4444 100%);
-  --shadow-accent: 0 8px 28px rgba(239, 68, 68, 0.28);
+  --accent: #f87171;
+  --accent-deep: #dc2626;
+  --accent-rgb: 220, 38, 38;
+  --accent-soft: rgba(220, 38, 38, 0.14);
+  --accent-glow: rgba(0, 0, 0, 0);
+  --brand-gradient: #dc2626;
+  --shadow-accent: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
 * { box-sizing: border-box; }
@@ -119,13 +121,7 @@ html, body, #app {
 }
 
 body {
-  /* Layered violet aurora so the bg has depth without being noisy. */
-  background:
-    radial-gradient(900px 500px at 12% -8%, rgba(124, 58, 237, 0.16) 0%, transparent 60%),
-    radial-gradient(700px 500px at 108% 10%, rgba(196, 181, 253, 0.08) 0%, transparent 55%),
-    radial-gradient(800px 600px at 50% 120%, rgba(124, 58, 237, 0.07) 0%, transparent 60%),
-    var(--bg);
-  background-attachment: fixed;
+  background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -134,22 +130,20 @@ body {
 }
 
 ::selection {
-  background: rgba(124, 58, 237, 0.4);
+  background: rgba(var(--accent-rgb), 0.3);
   color: #fff;
 }
 
-/* Slim, on-brand scrollbars */
-::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 999px;
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   background-clip: padding-box;
 }
-::-webkit-scrollbar-thumb:hover { background: #4a4366; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); background-clip: padding-box; }
 
-/* Global polish for a high-quality desktop app feel */
 button {
   font-family: inherit;
   font-weight: 500;
@@ -170,10 +164,9 @@ input[type="range"] {
   accent-color: var(--accent-deep);
 }
 
-/* Gentle interactive lift for cards (only when not overridden by component) */
 .card {
-  transition: box-shadow 140ms ease;
+  transition: border-color 140ms ease, background-color 140ms ease;
 }
 .card:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  border-color: rgba(255, 255, 255, 0.12);
 }

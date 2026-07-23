@@ -80,7 +80,7 @@
   } as const;
 
   type PillStyle = { bgAlpha: number; noHalo: boolean; compact: boolean };
-  const PILL_STYLE_DEFAULT: PillStyle = { bgAlpha: 0.35, noHalo: false, compact: false };
+  const PILL_STYLE_DEFAULT: PillStyle = { bgAlpha: 0.55, noHalo: false, compact: false };
 
   /** Accent color presets. Keys match the CSS palette names in app.css. */
   const ACCENTS: { id: string; label: string; color: string }[] = [
@@ -103,10 +103,10 @@
   ];
 
   /** Bounds mirrored from the Rust side (`MIN_WIDTH` / `MAX_WIDTH` in pill_window.rs). */
-  const PILL_W_MIN = 150;
-  const PILL_W_MAX = 420;
+  const PILL_W_MIN = 160;
+  const PILL_W_MAX = 360;
   const PILL_H_MIN = 36;
-  const PILL_H_MAX = 96;
+  const PILL_H_MAX = 80;
 
   // ---- Section nav ------------------------------------------------------
   const SECTIONS = [
@@ -175,7 +175,7 @@
   let pillCompact = $state(PILL_STYLE_DEFAULT.compact);
 
   // Pill size + position
-  let pillWidth = $state(200);
+  let pillWidth = $state(196);
   let pillHeight = $state(48);
   let pillBusy = $state(false);
 
@@ -857,6 +857,11 @@
   <section class="card" id="sec-models">
     <h2>Models</h2>
 
+    <p class="muted">
+      On-device Whisper models (same ladder as BridgeVoice). <strong>Base</strong> is recommended
+      for most machines. Larger models need more disk, RAM, and CPU time.
+    </p>
+
     {#if modelError}
       <div class="row-error">{modelError}</div>
     {:else if modelStatuses.length > 0}
@@ -864,16 +869,18 @@
         <div class="model-card" class:active={m.variant === modelStatus?.variant}>
           <div class="model-info">
             <div class="model-name">
-              {m.variant}
+              {m.displayName || m.variant}
+              {#if m.variant === 'whisper-base-en'}<span class="badge recommended">Recommended</span>{/if}
               {#if m.variant === modelStatus?.variant}<span class="badge">Active</span>{/if}
             </div>
-            <div class="row-sub mono">{m.path || ''}</div>
+            <div class="row-sub">{m.description || ''}</div>
+            {#if m.path}<div class="row-sub mono">{m.path}</div>{/if}
           </div>
           <div class="model-size">
             {#if m.ready}
               <span class="ok">● {m.fileSizeMb} MB · ready</span>
             {:else}
-              <span class="muted">not downloaded</span>
+              <span class="muted">~{m.expectedSizeMb} MB · not downloaded</span>
             {/if}
           </div>
           <div class="model-actions">
@@ -886,8 +893,9 @@
         </div>
       {/each}
       <p class="muted small">
-        Models are kept after download. Switch instantly (or restart app). 
-        Moonshine: use <code>npm run tauri:dev:moonshine</code> (or --features moonshine) for real results; normal dev shows a placeholder note.
+        Models stay on disk after download. Switching reloads the engine on the next transcription.
+        Moonshine Tiny needs a build with <code>--features moonshine</code>
+        (<code>npm run tauri:dev:moonshine</code>.
       </p>
     {:else}
       <p class="muted">Loading model status…</p>
@@ -1131,7 +1139,7 @@
   <section class="card about" id="sec-about">
     <h2>About</h2>
     <div class="about-head">
-      <span class="about-icon"><AppIcon size={56} /></span>
+      <span class="about-icon"><AppIcon size={44} /></span>
       <div>
         <div class="about-name">DevWhisp</div>
         <div class="row-sub mono">v{appInfo?.version ?? '0.1.0'}</div>
@@ -1157,91 +1165,92 @@
   .settings {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
   }
 
-  .settings-header { padding: 8px 0 0; }
+  .settings-header { padding: 2px 0 0; }
   h1 {
     margin: 0;
-    font-size: 24px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 650;
     letter-spacing: -0.02em;
     color: var(--text);
   }
-  .muted { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
-  .muted.small { font-size: 11px; }
-  .muted.empty { padding: 8px 0; }
+  .muted { color: var(--muted); font-size: 11.5px; margin: 2px 0 0; }
+  .muted.small { font-size: 10.5px; }
+  .muted.empty { padding: 6px 0; }
 
-  /* Sticky section nav */
   .section-nav {
     position: sticky;
     top: 0;
     z-index: 5;
     display: flex;
-    gap: 4px;
+    gap: 3px;
     flex-wrap: wrap;
-    padding: 6px 4px;
-    margin: 0 -6px;
-    background: var(--bg);
+    padding: 5px 2px;
+    margin: 0 -4px;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   }
   .sec-chip {
     background: var(--card);
     border: 1px solid var(--border);
     color: var(--muted);
-    padding: 4px 10px;
+    padding: 3px 8px;
     border-radius: 999px;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 500;
     font-family: inherit;
     cursor: pointer;
-    transition: all 140ms ease;
+    transition: all 120ms ease;
   }
   .sec-chip:hover { color: var(--text); border-color: var(--accent); }
 
   .card {
-    background: linear-gradient(180deg, var(--card-2), var(--card));
+    background: var(--card);
     border: 1px solid var(--border);
-    border-radius: var(--r-lg);
-    padding: 18px 22px;
+    border-radius: var(--r-md);
+    padding: 12px 14px;
     box-shadow: var(--shadow-1);
-    scroll-margin-top: 120px;
+    scroll-margin-top: 48px;
   }
   .settings > .card:first-of-type {
-    margin-top: 8px;
+    margin-top: 4px;
   }
 
   h2 {
-    margin: 0 0 14px;
-    font-size: 12px;
+    margin: 0 0 10px;
+    font-size: 10.5px;
     font-weight: 700;
     color: var(--accent);
     text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.1em;
   }
   .subhead {
-    margin-top: 6px;
-    font-size: 13px;
+    margin-top: 4px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--text);
   }
 
-  .divider { height: 1px; background: var(--border); margin: 14px -22px; }
+  .divider { height: 1px; background: var(--border); margin: 10px -14px; }
 
   .row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 18px;
-    padding: 6px 0;
+    gap: 12px;
+    padding: 4px 0;
+    flex-wrap: wrap;
   }
   .row.row-top { align-items: flex-start; }
-  .row-main { flex: 1; min-width: 0; }
-  .row-title { color: var(--text); font-size: 14px; font-weight: 500; }
-  .row-sub { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+  .row-main { flex: 1 1 0; min-width: min(100%, 200px); }
+  .row-title { color: var(--text); font-size: 13px; font-weight: 500; }
+  .row-sub { color: var(--muted); font-size: 11px; margin-top: 1px; overflow-wrap: anywhere; }
   .row-sub.mono { font-family: ui-monospace, "JetBrains Mono", monospace; word-break: break-all; }
-  .row-ctl { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .row-ctl { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; flex: 0 1 auto; min-width: 0; }
 
   /* Hotkey row: always stack description above the picker list.
      This guarantees good layout at *any* window size (no side-by-side squeeze
@@ -1250,9 +1259,6 @@
   .row.row-hotkey {
     flex-direction: column;
     align-items: stretch;
-  }
-  .row.row-hotkey .row-main {
-    /* gap from .row provides separation to the list below */
   }
   .row.row-hotkey .row-ctl {
     display: block;
@@ -1266,8 +1272,10 @@
   .row.row-hotkey .hotkey-option {
     max-width: 520px; /* keep individual options readable even on ultra-wide windows */
   }
-  .row-slider { gap: 12px; }
-  .row-slider input[type='range'] { width: 160px; }
+  .row-slider { gap: 12px; flex: 1 1 auto; justify-content: flex-start; }
+  .row-slider input[type='range'] { flex: 1 1 auto; min-width: 120px; max-width: 220px; }
+
+  select, input[type='number'] { max-width: 100%; }
   .row-error {
     color: var(--danger);
     font-family: ui-monospace, "JetBrains Mono", monospace;
@@ -1278,6 +1286,7 @@
   /* Segmented control */
   .segmented {
     display: inline-flex;
+    flex-wrap: wrap;
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: 999px;
@@ -1287,18 +1296,18 @@
     border: none;
     background: transparent;
     color: var(--muted);
-    padding: 5px 14px;
+    padding: 4px 11px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
-    transition: all 140ms ease;
+    transition: all 120ms ease;
   }
   .segmented button.active {
-    background: var(--brand-gradient);
+    background: var(--accent-deep);
     color: #fff;
-    box-shadow: var(--shadow-accent);
+    box-shadow: var(--shadow-1);
   }
 
   input[type='checkbox'] {
@@ -1351,14 +1360,12 @@
   kbd {
     background: var(--bg-elevated);
     border: 1px solid var(--border);
-    border-bottom-width: 2px;
     border-radius: 5px;
     padding: 2px 7px;
     font-family: ui-monospace, "JetBrains Mono", monospace;
     font-size: 11px;
     color: var(--text);
   }
-  .plus { color: var(--muted); margin: 0 2px; font-size: 12px; }
   .mono { font-family: ui-monospace, "JetBrains Mono", monospace; }
 
   /* Models */
@@ -1373,17 +1380,18 @@
     background: var(--bg-elevated);
     margin-bottom: 8px;
   }
-  .model-card.active { border-color: rgba(196, 181, 253, 0.4); box-shadow: inset 0 0 0 1px rgba(124,58,237,0.12); }
-  .model-card.muted-card { opacity: 0.78; }
+  .model-card.active { border-color: var(--accent); }
   .model-name { color: var(--text); font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .badge {
     font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
     padding: 2px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
   }
-  .badge.ghost { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); }
+  .badge.recommended {
+    background: rgba(52, 211, 153, 0.14);
+    color: var(--ok);
+  }
   .model-size { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 12px; text-align: right; flex-shrink: 0; }
   .ok { color: var(--ok); }
-  .warn { color: var(--warn); }
 
   /* Dictionary */
   .dict-list { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -1392,8 +1400,8 @@
     background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px;
   }
   .dict-row code { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
-  .dict-row .from { background: rgba(124, 58, 237, 0.16); color: var(--accent); }
-  .dict-row .to { background: rgba(92, 255, 156, 0.08); color: var(--ok); flex: 1; }
+  .dict-row .from { background: var(--accent-soft); color: var(--accent); }
+  .dict-row .to { background: rgba(52, 211, 153, 0.12); color: var(--ok); flex: 1; }
   .dict-row .arrow, .dict-add .arrow { color: var(--muted); flex-shrink: 0; }
 
   .dict-add {
@@ -1408,9 +1416,9 @@
   .dict-add input[type='text']:focus { border-color: var(--accent); }
 
   /* About */
-  .about-head { display: flex; align-items: center; gap: 16px; }
-  .about-icon { display: inline-flex; flex-shrink: 0; filter: drop-shadow(0 4px 14px rgba(124, 58, 237, 0.4)); }
-  .about-name { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+  .about-head { display: flex; align-items: center; gap: 12px; }
+  .about-icon { display: inline-flex; flex-shrink: 0; }
+  .about-name { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
   .about-links { margin-top: 12px; }
   .about-links .link-btn {
     background: none; border: none; padding: 0; cursor: pointer;
@@ -1446,15 +1454,14 @@
     box-sizing: border-box;
   }
   .hotkey-option:hover:not(:disabled) {
-    border-color: var(--accent-soft, var(--accent));
-    background: var(--bg-elevated-2, var(--bg-elevated));
+    border-color: var(--accent);
+    background: var(--card-hover);
   }
   .hotkey-option:active:not(:disabled) { transform: translateY(1px); }
   .hotkey-option:disabled { opacity: 0.55; cursor: progress; }
   .hotkey-option.active {
     border-color: var(--accent);
-    background: linear-gradient(180deg, rgba(124, 58, 237, 0.10), rgba(124, 58, 237, 0.04));
-    box-shadow: 0 0 0 1px var(--accent) inset;
+    background: var(--accent-soft);
   }
   .hotkey-option-keys {
     display: inline-flex;
@@ -1476,6 +1483,7 @@
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
   }
   .hotkey-option-state {
@@ -1484,12 +1492,6 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-  }
-  .row-controls-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
   }
 
   /* Accent color chips */

@@ -91,6 +91,46 @@ pub fn set_vad_silence_ms(ms: u32) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether adaptive VAD thresholding is enabled (default true).
+#[tauri::command]
+pub fn get_vad_adaptive() -> bool {
+    crate::config::load_vad_adaptive()
+}
+
+#[tauri::command]
+pub fn set_vad_adaptive(adaptive: bool) -> Result<(), String> {
+    crate::config::save_vad_adaptive(adaptive);
+    Ok(())
+}
+
+/// VAD brief-pause threshold in milliseconds (default 400).  Silence below this
+/// keeps the pill in "Paused" but does not stop recording.
+#[tauri::command]
+pub fn get_vad_pause_ms() -> u32 {
+    crate::config::load_vad_pause_ms()
+}
+
+#[tauri::command]
+pub fn set_vad_pause_ms(ms: u32) -> Result<(), String> {
+    let clamped = ms.clamp(100, 2000);
+    crate::config::save_vad_pause_ms(clamped);
+    Ok(())
+}
+
+/// VAD minimum-speech duration in milliseconds (default 300).  Auto-stop is
+/// suppressed until the recording has lasted at least this long.
+#[tauri::command]
+pub fn get_vad_min_speech_ms() -> u32 {
+    crate::config::load_vad_min_speech_ms()
+}
+
+#[tauri::command]
+pub fn set_vad_min_speech_ms(ms: u32) -> Result<(), String> {
+    let clamped = ms.clamp(50, 2000);
+    crate::config::save_vad_min_speech_ms(clamped);
+    Ok(())
+}
+
 /// Re-inject (paste again) previously-transcribed text into the focused app.
 /// Used by the History view's "Paste again" action.
 #[tauri::command]
@@ -288,12 +328,15 @@ pub async fn transcribe_buffer(
     Ok(out)
 }
 
-/// Status of the active STT model. Returns `None` if the model dir is
-/// missing or the active variant's files aren't on disk.
+/// Status of an STT model variant (active or listed).
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelStatus {
     pub variant: String,
+    /// Short UI label (e.g. "Base", "Distil-Large").
+    pub display_name: String,
+    /// One-line description for the model picker.
+    pub description: String,
     pub ready: bool,
     pub path: String,
     pub file_size_mb: u64,
@@ -444,91 +487,127 @@ pub fn set_selected_audio_device(name: String) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-pub fn get_model_status() -> ModelStatus {
-    use crate::stt::model_manager::ModelVariant;
-    let file = crate::stt::model_manager::active_model_path();
-    let dir = crate::stt::model_manager::active_model_dir();
-    let (variant, expected) = dir
-        .as_ref()
-        .and_then(|p| p.file_name())
-        .and_then(|n| n.to_str())
-        .map(|s| {
-            let expected = match s {
-                "whisper-tiny-en" => ModelVariant::WhisperTinyEn.expected_size_mb(),
-                "moonshine-tiny" => ModelVariant::MoonshineTiny.expected_size_mb(),
-                _ => 0,
-            };
-            (s.to_string(), expected)
-        })
-        .unwrap_or_else(|| (String::new(), 0));
-    let mut file_size_mb: u64 = 0;
-    let mut ready = false;
-    if let Some(ref p) = file {
-        if let Ok(meta) = std::fs::metadata(p) {
-            file_size_mb = meta.len() / 1_000_000;
-            // Within 10% of expected size is "ready enough".
-            ready = file_size_mb > 0
-                && (expected == 0 || (file_size_mb as i64 - expected as i64).abs() < (expected.max(10) as i64));
+fn model_status_for(v: crate::stt::model_manager::ModelVariant) -> ModelStatus {
+    use crate::stt::model_manager::models_root;
+    let dir = models_root().map(|r| r.join(v.as_str()));
+    let expected = v.expected_size_mb();
+    let (file_size_mb, ready) = if let Some(d) = &dir {
+        let f = v.model_file(d);
+        if f.is_file() {
+            if let Ok(m) = std::fs::metadata(&f) {
+                let mb = m.len() / 1_000_000;
+                // Within ~15% of expected size (or at least 1 MB for tiny models).
+                let tol = (expected.max(10) as i64 * 15) / 100;
+                let ready = mb > 0 && (mb as i64 - expected as i64).abs() <= tol.max(5);
+                (mb, ready)
+            } else {
+                (0, false)
+            }
+        } else {
+            (0, false)
         }
-    }
+    } else {
+        (0, false)
+    };
     ModelStatus {
-        variant,
+        variant: v.as_str().to_string(),
+        display_name: v.display_name().to_string(),
+        description: v.description().to_string(),
         ready,
-        path: dir.map(|p| p.to_string_lossy().to_string()).unwrap_or_default(),
+        path: dir
+            .map(|d| d.to_string_lossy().to_string())
+            .unwrap_or_default(),
         file_size_mb,
         expected_size_mb: expected,
     }
 }
 
+#[tauri::command]
+pub fn get_model_status() -> ModelStatus {
+    use crate::stt::model_manager::ModelVariant;
+    if let Some(v) = crate::stt::model_manager::active_variant() {
+        return model_status_for(v);
+    }
+    // No active model yet — return an empty status (UI prompts download).
+    ModelStatus {
+        variant: String::new(),
+        display_name: String::new(),
+        description: String::new(),
+        ready: false,
+        path: String::new(),
+        file_size_mb: 0,
+        expected_size_mb: ModelVariant::WhisperBaseEn.expected_size_mb(),
+    }
+}
+
 /// Download a model variant by name. Returns the path to the model dir.
-/// Supported variants: "whisper-tiny-en", "moonshine-tiny".
-/// Emits "model-download-progress" events with { variant, pct, downloadedMB, totalMB }.
+///
+/// BridgeVoice-style Whisper ladder:
+/// `whisper-tiny-en`, `whisper-base-en`, `whisper-small-en`,
+/// `whisper-medium-en`, `whisper-large-v3`, `whisper-distil-large-v3`,
+/// plus optional `moonshine-tiny`.
+///
+/// Emits "model-download-progress" events with
+/// `{ variant, pct, downloadedMB, totalMB }`.
 #[tauri::command]
 pub async fn download_model(app: tauri::AppHandle, variant: String) -> Result<String, String> {
-    let v = match variant.as_str() {
-        "whisper-tiny-en" => crate::stt::model_manager::ModelVariant::WhisperTinyEn,
-        "moonshine-tiny" => crate::stt::model_manager::ModelVariant::MoonshineTiny,
-        other => return Err(format!("unknown model variant: {other}")),
-    };
+    use crate::stt::model_manager::ModelVariant;
+    let v = ModelVariant::from_id(&variant)
+        .ok_or_else(|| format!("unknown model variant: {variant}"))?;
 
-    // Simple wrapper that logs; for real progress the download_file could be enhanced
-    // to take a progress callback. Current impl logs every 5MB inside download_file.
-    // We emit a start + complete event here for UI.
-    let _ = app.emit("model-download-progress", serde_json::json!({
-        "variant": variant,
-        "pct": 0,
-        "downloadedMB": 0,
-        "totalMB": v.approx_size_mb()
-    }));
+    let _ = app.emit(
+        "model-download-progress",
+        serde_json::json!({
+            "variant": variant,
+            "pct": 0,
+            "downloadedMB": 0,
+            "totalMB": v.approx_size_mb()
+        }),
+    );
 
-    // Live progress via model_manager (emits real chunked pct during download stream).
-    let app_for_prog = app.clone();
     let total_mb = v.approx_size_mb() as u64;
-    let path: PathBuf = crate::stt::model_manager::download(v, Some(app_for_prog.clone()))
+    let path: PathBuf = crate::stt::model_manager::download(v, Some(app.clone()))
         .await
         .map_err(|e| e.to_string())?;
 
-    let _ = app.emit("model-download-progress", serde_json::json!({
-        "variant": variant,
-        "pct": 100,
-        "downloadedMB": total_mb,
-        "totalMB": total_mb
-    }));
+    // Model switch: drop any previously loaded whisper context.
+    crate::stt::whisper::reset();
+    #[cfg(feature = "moonshine")]
+    {
+        crate::stt::moonshine::reset();
+    }
+
+    let _ = app.emit(
+        "model-download-progress",
+        serde_json::json!({
+            "variant": variant,
+            "pct": 100,
+            "downloadedMB": total_mb,
+            "totalMB": total_mb
+        }),
+    );
 
     Ok(path.to_string_lossy().to_string())
 }
 
 /// Switch the active model among already downloaded variants.
 /// Updates active.txt and resets in-memory STT contexts so the change takes
-/// effect on the next transcription (no redownload, hot-swappable or restart).
+/// effect on the next transcription (no redownload).
 #[tauri::command]
 pub fn set_active_model(variant: String) -> Result<(), String> {
-    let v = match variant.as_str() {
-        "whisper-tiny-en" => crate::stt::model_manager::ModelVariant::WhisperTinyEn,
-        "moonshine-tiny" => crate::stt::model_manager::ModelVariant::MoonshineTiny,
-        other => return Err(format!("unknown model variant: {other}")),
-    };
+    use crate::stt::model_manager::ModelVariant;
+    let v = ModelVariant::from_id(&variant)
+        .ok_or_else(|| format!("unknown model variant: {variant}"))?;
+
+    // Refuse to activate a model that isn't on disk yet.
+    let status = model_status_for(v);
+    if !status.ready {
+        return Err(format!(
+            "model '{}' is not downloaded yet — download it first",
+            v.display_name()
+        ));
+    }
+
     crate::stt::model_manager::set_active(v).map_err(|e| e.to_string())?;
 
     crate::stt::whisper::reset();
@@ -539,33 +618,12 @@ pub fn set_active_model(variant: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Return status for both known models so UI can show switcher without
-/// affecting the currently active one.
+/// Return status for every known model so the UI can show a BridgeVoice-style
+/// picker without affecting the currently active one.
 #[tauri::command]
 pub fn list_model_statuses() -> Result<Vec<ModelStatus>, String> {
-    use crate::stt::model_manager::{ModelVariant, models_root};
-    let known = [ModelVariant::WhisperTinyEn, ModelVariant::MoonshineTiny];
-    let mut res = vec![];
-    for v in known {
-        let dir = models_root().map(|r| r.join(v.as_str()));
-        let expected = v.approx_size_mb();
-        let (file_size_mb, ready) = if let Some(d) = &dir {
-            let f = v.model_file(d);
-            if f.is_file() {
-                if let Ok(m) = std::fs::metadata(&f) {
-                    (m.len() / 1_000_000, true)
-                } else { (0, false) }
-            } else { (0, false) }
-        } else { (0, false) };
-        res.push(ModelStatus {
-            variant: v.as_str().to_string(),
-            ready,
-            path: dir.map(|d| d.to_string_lossy().to_string()).unwrap_or_default(),
-            file_size_mb,
-            expected_size_mb: expected,
-        });
-    }
-    Ok(res)
+    use crate::stt::model_manager::ModelVariant;
+    Ok(ModelVariant::ALL.iter().map(|v| model_status_for(*v)).collect())
 }
 
 // ---------- History IPC ---------------------------------------------------

@@ -83,11 +83,18 @@ export type AppInfo = {
 
 export type ModelStatus = {
   variant: string;
+  /** Short UI label, e.g. "Base", "Distil-Large". */
+  displayName: string;
+  /** One-line description for the model picker. */
+  description: string;
   ready: boolean;
   path: string;
   fileSizeMb: number;
   expectedSizeMb: number;
 };
+
+/** BridgeVoice-recommended default for general dictation. */
+export const RECOMMENDED_MODEL = 'whisper-base-en';
 
 export type HistoryEntry = {
   id: number;

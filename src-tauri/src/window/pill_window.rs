@@ -39,7 +39,9 @@ static SNAPPING: AtomicBool = AtomicBool::new(false);
 /// Listening/processing state adds a bit of width but the underlying window
 /// stays at the chosen size; the pill's content auto-grows the window via
 /// `set_size` if it needs more room (handled by `set_pill_size` IPC).
-const DEFAULT_WIDTH: f64 = 200.0;
+// Larger than the visual capsule so the webview can inset the pill body
+// (safe padding for AA + glow + brand mark) without clipping the left edge.
+const DEFAULT_WIDTH: f64 = 196.0;
 const DEFAULT_HEIGHT: f64 = 48.0;
 
 /// Margin from the bottom-right corner of the primary monitor on first launch.
@@ -287,13 +289,13 @@ fn snap_to_edge<R: tauri::Runtime>(window: &tauri::Window<R>) {
 
 // ---- Pill size + position-preset IPC support --------------------------
 
-/// Size bounds for the user-controlled pill. Width range chosen so the pill
-/// stays readable at the small end and never exceeds a comfortable half-screen
-/// width at the large end.
-pub const MIN_WIDTH: f64 = 150.0;
-pub const MAX_WIDTH: f64 = 420.0;
+/// Size bounds for the user-controlled pill. The range is intentionally
+/// compact so the pill never becomes a large overlay. Min size leaves room
+/// for the safe inset used by Pill.svelte (avoids left-edge clipping).
+pub const MIN_WIDTH: f64 = 160.0;
+pub const MAX_WIDTH: f64 = 360.0;
 pub const MIN_HEIGHT: f64 = 36.0;
-pub const MAX_HEIGHT: f64 = 96.0;
+pub const MAX_HEIGHT: f64 = 80.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]

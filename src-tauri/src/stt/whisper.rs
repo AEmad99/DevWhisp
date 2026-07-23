@@ -122,16 +122,22 @@ pub fn transcribe(samples: &[f32]) -> Result<String> {
 
     // Build the full-transcription parameters. Greedy decoding for speed.
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-    params.set_language(Some("en"));
+    // English-only checkpoints always use "en". Multilingual (large-v3, distil)
+    // auto-detect so non-English dictation still works.
+    let lang = match super::model_manager::active_variant() {
+        Some(v) if v.is_english_only() => Some("en"),
+        Some(_) => None, // auto-detect
+        None => Some("en"),
+    };
+    params.set_language(lang);
     params.set_print_progress(false);
     params.set_print_realtime(false);
     params.set_print_timestamps(false);
     params.set_no_context(true);
     params.set_single_segment(true);
 
-    // Use physical cores for whisper-tiny. Hyper-threads share execution units
-    // and don't help ALU-bound decoder work; using logical cores often
-    // oversubscribes and slows things down. Cap at 8 for sanity on HEDT.
+    // Physical cores only: hyper-threads share execution units and don't help
+    // ALU-bound decoder work. Cap at 8 for sanity on HEDT.
     let n_threads = num_cpus::get_physical().clamp(2, 8) as i32;
     params.set_n_threads(n_threads);
 

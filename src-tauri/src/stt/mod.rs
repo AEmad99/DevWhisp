@@ -24,7 +24,7 @@ pub async fn transcribe_pcm_16k(samples: &[f32]) -> Result<String> {
 
     if crate::stt::model_manager::active_model_path().is_none() {
         return Err(anyhow::anyhow!(
-            "No STT model downloaded yet. Open Settings or the model screen and download one (Tiny recommended)."
+            "No STT model downloaded yet. Open Settings → Models and download one (Base recommended)."
         ));
     }
 

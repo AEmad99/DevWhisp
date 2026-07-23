@@ -124,6 +124,54 @@ pub fn save_hotkey(spec: &str) {
     save_value("hotkey", serde_json::Value::String(spec.to_string()));
 }
 
+/// Read an unsigned integer setting from settings.json, defaulting when absent/unreadable.
+pub fn load_u64(key: &str) -> Option<u64> {
+    std::fs::read_to_string(settings_path())
+        .ok()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .and_then(|v| v.get(key).and_then(|x| x.as_u64())
+            .or_else(|| v.get(key).and_then(|x| x.as_i64()).map(|i| i as u64)))
+}
+
+/// Persist an unsigned integer setting.
+pub fn save_u64(key: &str, value: u64) {
+    save_value(key, serde_json::Value::Number(value.into()));
+}
+
+/// Read persisted adaptive-VAD flag (default true).
+pub fn load_vad_adaptive() -> bool {
+    load_bool("vad_adaptive", true)
+}
+
+/// Persist adaptive-VAD flag.
+pub fn save_vad_adaptive(adaptive: bool) {
+    save_bool("vad_adaptive", adaptive);
+}
+
+/// Read persisted brief-pause threshold (default 400 ms).
+pub fn load_vad_pause_ms() -> u32 {
+    load_u64("vad_pause_ms")
+        .map(|v| v.clamp(100, 2000) as u32)
+        .unwrap_or(400)
+}
+
+/// Persist brief-pause threshold.
+pub fn save_vad_pause_ms(ms: u32) {
+    save_u64("vad_pause_ms", ms.clamp(100, 2000) as u64);
+}
+
+/// Read persisted minimum-speech duration (default 300 ms).
+pub fn load_vad_min_speech_ms() -> u32 {
+    load_u64("vad_min_speech_ms")
+        .map(|v| v.clamp(50, 2000) as u32)
+        .unwrap_or(300)
+}
+
+/// Persist minimum-speech duration.
+pub fn save_vad_min_speech_ms(ms: u32) {
+    save_u64("vad_min_speech_ms", ms.clamp(50, 2000) as u64);
+}
+
 /// Read a boolean setting from settings.json, defaulting when absent/unreadable.
 pub fn load_bool(key: &str, default: bool) -> bool {
     std::fs::read_to_string(settings_path())

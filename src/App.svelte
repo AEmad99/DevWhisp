@@ -7,15 +7,15 @@
    * the sidebar UI, the keyboard shortcuts, and a global IPC-error toast.
    */
 
-	  import { onMount } from 'svelte';
-	  import { listen } from '@tauri-apps/api/event';
-	  import Dashboard from './lib/Dashboard.svelte';
-	  import History from './lib/History.svelte';
-	  import Settings from './lib/Settings.svelte';
-	  import AppIcon from './lib/AppIcon.svelte';
-	  import NavIcon from './lib/NavIcon.svelte';
+import { onMount } from 'svelte';
+  import { listen } from '@tauri-apps/api/event';
+  import Dashboard from './lib/Dashboard.svelte';
+  import History from './lib/History.svelte';
+  import Settings from './lib/Settings.svelte';
+  import AppIcon from './lib/AppIcon.svelte';
+  import NavIcon from './lib/NavIcon.svelte';
   import OnboardingWizard from './lib/OnboardingWizard.svelte';
-	  import { getAppInfo, type AppInfo, type IpcError, formatIpcError } from './lib/api';
+  import { getAppInfo, type AppInfo, type IpcError, formatIpcError } from './lib/api';
 
   type View = 'dashboard' | 'history' | 'settings';
 
@@ -160,7 +160,7 @@
   <aside class="dock" aria-label="Primary navigation">
     <div class="dock-brand">
       <span class="dock-icon" aria-hidden="true">
-        <AppIcon size={32} />
+        <AppIcon size={28} />
       </span>
       <span class="dock-name">DevWhisp</span>
     </div>
@@ -224,43 +224,40 @@
 </div>
 
 <style>
-  /* Layout shell — side dock + content. */
   .shell {
     display: grid;
-    grid-template-columns: 200px 1fr;
+    grid-template-columns: 168px 1fr;
     min-height: 100vh;
   }
 
-  /* Side dock — always vertical, never collapses to top nav. */
   .dock {
     background: var(--bg-elevated);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    padding: 20px 12px 16px;
-    gap: 24px;
+    padding: 14px 10px 12px;
+    gap: 16px;
     position: sticky;
     top: 0;
     align-self: start;
     height: 100vh;
-    min-width: 200px;
+    min-width: 168px;
   }
 
   .dock-brand {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 4px 8px 8px;
+    gap: 8px;
+    padding: 2px 6px 4px;
   }
   .dock-icon {
     display: inline-flex;
     flex-shrink: 0;
-    filter: drop-shadow(0 2px 8px rgba(124, 58, 237, 0.35));
   }
   .dock-name {
-    font-weight: 600;
-    font-size: 15px;
-    letter-spacing: -0.02em;
+    font-weight: 650;
+    font-size: 13.5px;
+    letter-spacing: -0.03em;
     color: var(--text);
   }
 
@@ -269,49 +266,49 @@
     flex-direction: column;
     gap: 2px;
     flex: 1;
-    padding: 0 4px;
+    padding: 0 2px;
   }
 
   .dock-item {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
-    padding: 10px 12px;
+    padding: 8px 10px;
     background: transparent;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     color: var(--muted);
     font-family: inherit;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 500;
     cursor: pointer;
     text-align: left;
-    transition: background 140ms ease, color 140ms ease;
+    transition: background 120ms ease, color 120ms ease;
   }
   .dock-item:hover {
     color: var(--text);
-    background: rgba(124, 58, 237, 0.08);
+    background: rgba(255, 255, 255, 0.05);
   }
   .dock-item.active {
     color: var(--text);
-    background: rgba(124, 58, 237, 0.14);
+    background: var(--accent-soft);
   }
   .dock-item.active::before {
     content: '';
     position: absolute;
     left: 0;
-    top: 8px;
-    bottom: 8px;
-    width: 3px;
+    top: 7px;
+    bottom: 7px;
+    width: 2.5px;
     background: var(--accent-deep);
-    border-radius: 0 3px 3px 0;
+    border-radius: 0 2px 2px 0;
   }
   .dock-item-icon {
     display: inline-flex;
     flex-shrink: 0;
-    opacity: 0.85;
+    opacity: 0.8;
   }
   .dock-item.active .dock-item-icon {
     color: var(--accent);
@@ -323,68 +320,58 @@
   }
 
   .dock-footer {
-    padding: 12px 12px 0;
+    padding: 10px 8px 0;
     border-top: 1px solid var(--border);
   }
   .dock-version {
     color: var(--muted);
     font-family: ui-monospace, "JetBrains Mono", monospace;
-    font-size: 11px;
-    opacity: 0.65;
+    font-size: 10px;
+    opacity: 0.6;
   }
 
-  /* Content */
   .content {
     min-width: 0;
     overflow-y: auto;
     height: 100vh;
   }
   .content-inner {
-    max-width: 720px;
+    max-width: 680px;
     margin: 0 auto;
-    padding: 28px 36px 80px;
+    padding: 20px 28px 64px;
   }
 
-  /* Toast */
   .toast {
     position: fixed;
-    bottom: 18px;
-    right: 18px;
+    bottom: 14px;
+    right: 14px;
     z-index: 50;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    background: rgba(20, 16, 30, 0.95);
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(14, 10, 24, 0.96);
     border: 1px solid var(--danger);
     border-left-width: 3px;
-    border-radius: 10px;
+    border-radius: 8px;
     color: var(--text);
     font-family: ui-monospace, "JetBrains Mono", monospace;
-    font-size: 12px;
-    max-width: 360px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-    animation: toast-in 220ms ease-out;
+    font-size: 11.5px;
+    max-width: 340px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    animation: toast-in 200ms ease-out;
   }
-  .toast.toast-success {
-    border-color: var(--ok);
-  }
-  .toast.toast-info {
-    border-color: var(--accent);
-  }
+  .toast.toast-success { border-color: var(--ok); }
+  .toast.toast-info { border-color: var(--accent); }
   .toast-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: var(--danger);
     flex-shrink: 0;
   }
-  .toast-success .toast-dot {
-    background: var(--ok);
-  }
-  .toast-info .toast-dot {
-    background: var(--accent);
-  }
+  .toast-success .toast-dot { background: var(--ok); }
+  .toast-info .toast-dot { background: var(--accent); }
   .toast-msg {
     flex: 1;
     min-width: 0;
@@ -394,32 +381,31 @@
     background: transparent;
     border: none;
     color: var(--muted);
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1;
     cursor: pointer;
-    padding: 0 4px;
+    padding: 0 2px;
   }
   .toast-close:hover { color: var(--text); }
 
   @keyframes toast-in {
-    from { opacity: 0; transform: translateY(8px); }
+    from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* Responsive breakpoints */
   @media (max-width: 900px) {
-    .shell { grid-template-columns: 64px 1fr; }
+    .shell { grid-template-columns: 56px 1fr; }
     .dock {
-      min-width: 64px;
+      min-width: 56px;
       align-items: center;
-      padding: 20px 8px 16px;
+      padding: 14px 6px 12px;
     }
-    .dock-brand { justify-content: center; padding: 4px 0 8px; }
+    .dock-brand { justify-content: center; padding: 2px 0 4px; }
     .dock-name, .dock-item-label { display: none; }
     .dock-nav { padding: 0; align-items: center; }
-    .dock-item { justify-content: center; padding: 10px; }
+    .dock-item { justify-content: center; padding: 9px; }
     .dock-item.active::before { top: 4px; bottom: 4px; }
-    .dock-footer { text-align: center; padding: 12px 4px 0; }
+    .dock-footer { text-align: center; padding: 10px 2px 0; }
   }
   @media (max-width: 600px) {
     .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
@@ -431,15 +417,15 @@
       min-width: auto;
       border-right: none;
       border-bottom: 1px solid var(--border);
-      padding: 10px 12px;
-      gap: 12px;
+      padding: 8px 10px;
+      gap: 10px;
       align-items: center;
     }
     .dock-brand { padding: 0; }
-    .dock-nav { flex-direction: row; flex: 1; justify-content: center; gap: 4px; }
-    .dock-item { width: auto; padding: 8px 12px; }
+    .dock-nav { flex-direction: row; flex: 1; justify-content: center; gap: 3px; }
+    .dock-item { width: auto; padding: 7px 10px; }
     .dock-footer { display: none; }
     .content { height: auto; }
+    .content-inner { padding: 14px 16px 48px; }
   }
-
 </style>

@@ -1,16 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" aria-hidden="true">
+  <!-- DevWhisp — "Voice Code"
+       Family brackets < > framing three horizontal smoky bars.
+       Reads as voice + code; clean and symmetrical at every size. -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#c4b5fd"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
+    <linearGradient id="bg" x1="0.10" y1="0" x2="0.92" y2="1">
+      <stop offset="0%" stop-color="#ede9fe"/>
+      <stop offset="40%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="42%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
   </defs>
+
+  <!-- Tile -->
   <rect x="96" y="96" width="832" height="832" rx="196" fill="url(#bg)"/>
-  <rect x="99" y="99" width="826" height="826" rx="193" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="6"/>
+  <rect x="96" y="96" width="832" height="832" rx="196" fill="url(#sheen)"/>
+  <rect x="99" y="99" width="826" height="826" rx="193" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="6"/>
+
+  <!-- Brackets -->
   <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M 415.34 389.03 A 152 152 0 0 1 415.34 634.97" stroke-width="66" stroke-opacity="1"/>
-    <path d="M 491.76 283.86 A 282 282 0 0 1 491.76 740.14" stroke-width="58" stroke-opacity="0.80"/>
-    <path d="M 568.17 178.68 A 412 412 0 0 1 568.17 845.32" stroke-width="50" stroke-opacity="0.60"/>
+    <path d="M 420 280 L 260 512 L 420 744" stroke-width="76"/>
+    <path d="M 604 280 L 764 512 L 604 744" stroke-width="76"/>
   </g>
-  <circle cx="326" cy="512" r="62" fill="#ffffff"/>
+
+  <!-- Three horizontal smoky bars, centered -->
+  <g fill="#ffffff">
+    <path d="M 394 386 C 394 357 409 344 434 346 L 590 346 C 615 344 630 357 630 386 C 630 415 615 428 590 426 L 434 426 C 409 428 394 415 394 386 Z" fill-opacity="0.52"/>
+    <path d="M 364 508 C 364 477 382 462 410 464 L 614 464 C 642 462 660 477 660 508 C 660 539 642 554 614 552 L 410 552 C 382 554 364 539 364 508 Z" fill-opacity="0.80"/>
+    <path d="M 394 630 C 394 599 412 584 440 586 L 584 586 C 612 584 630 599 630 630 C 630 661 612 676 584 674 L 440 674 C 412 676 394 661 394 630 Z" fill-opacity="1"/>
+  </g>
 </svg>

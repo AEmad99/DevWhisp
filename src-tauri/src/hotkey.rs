@@ -21,6 +21,8 @@ use anyhow::{anyhow, Result};
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use serde::Serialize;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
@@ -648,50 +650,11 @@ pub(crate) fn transcribe_and_inject<R: Runtime>(app: AppHandle<R>, samples: Vec<
     });
 }
 
-/// Spawn background monitor that watches raw RMS energy on the live capture
-/// buffer. When RMS stays below threshold for the configured hold-off, it
-/// stops capture and runs the transcription path (VAD auto utterance end).
+/// Spawn the adaptive VAD background monitor.  Replaces the old threshold-only
+/// loop with a two-tier pause-aware engine that keeps recording through brief
+/// silences and only stops on true end-of-utterance silence.
 fn spawn_vad_monitor<R: Runtime>(app: AppHandle<R>) {
-    std::thread::Builder::new()
-        .name("devwhisp-vad-monitor".to_string())
-        .spawn(move || {
-            let silence_ms: u32 = crate::config::load_vad_silence_ms();
-            let energy_thresh: f32 = crate::config::load_vad_energy_threshold();
-
-            let mut last_speech = Instant::now();
-            const VAD_WINDOW: usize = 512; // ~32 ms @ 16 kHz — stable for energy
-            let min_speech = Duration::from_millis(250);
-            let start_at = Instant::now();
-
-            // Let first audio frames arrive so we don't false-end on empty.
-            std::thread::sleep(Duration::from_millis(120));
-
-            while crate::audio::is_active() {
-                let rms = crate::audio::recent_rms(VAD_WINDOW);
-
-                if rms >= energy_thresh {
-                    last_speech = Instant::now();
-                }
-
-                let silent_ms = last_speech.elapsed().as_millis() as u64;
-                let running_ms = start_at.elapsed().as_millis() as u64;
-
-                if running_ms > min_speech.as_millis() as u64
-                    && crate::audio::vad_should_stop(rms, silent_ms, silence_ms as u64, energy_thresh)
-                {
-                    log::info!(
-                        "VAD: auto-ending after {} ms silence (rms={:.4} < thresh={:.3}, holdoff={} ms)",
-                        silent_ms,
-                        rms,
-                        energy_thresh,
-                        silence_ms
-                    );
-                    let _ = stop_and_transcribe(&app);
-                    break;
-                }
-
-                std::thread::sleep(Duration::from_millis(40));
-            }
-        })
-        .ok(); // best effort; VAD failure shouldn't break start
+    use crate::audio::vad;
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    vad::spawn_adaptive_vad_monitor(app, stop_flag);
 }

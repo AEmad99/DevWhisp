@@ -13,6 +13,7 @@
     getAccelerationInfo,
     listHistory,
     downloadModel,
+    RECOMMENDED_MODEL,
     type ModelStatus,
     type RecordingMode,
     type HistoryEntry,
@@ -111,7 +112,7 @@
     busy = true;
     downloadMsg = 'Downloading…';
     try {
-      await downloadModel('whisper-tiny-en');
+      await downloadModel(RECOMMENDED_MODEL);
       downloadMsg = null;
       await refresh();
     } catch {
@@ -165,18 +166,18 @@
 
 <div class="home">
   <header class="hero">
-    <span class="hero-mark" aria-hidden="true"><AppIcon size={52} /></span>
+    <span class="hero-mark" aria-hidden="true"><AppIcon size={40} /></span>
     <div>
       <h1>DevWhisp</h1>
-      <p class="tagline">Talk instead of type — local, offline, on your CPU.</p>
+      <p class="tagline">Voice → text, local &amp; offline.</p>
     </div>
   </header>
 
-  <!-- Live status hero -->
   <section class="status-card" data-state={pillState}>
     <div class="status-top">
       <span class="status-dot" class:live={pillState === 'listening'}></span>
       <span class="status-label">{statusLabel}</span>
+      <span class="mode-chip">{mode === 'toggle' ? 'Toggle' : mode === 'vad' ? 'VAD' : 'PTT'}</span>
     </div>
     <div class="status-bars" aria-hidden="true">
       {#each bars as mag, i (i)}
@@ -185,28 +186,24 @@
     </div>
     <div class="status-foot">
       <span>
-        {#if mode === 'toggle'}Tap{:else if mode === 'vad'}Speak (auto){:else}Hold{/if}
+        {#if mode === 'toggle'}Tap{:else if mode === 'vad'}Speak{:else}Hold{/if}
         {#each hotkeyKeys as k, i (k + i)}<kbd>{k}</kbd>{#if i < hotkeyKeys.length - 1}<span class="plus">+</span>{/if}{/each}
-        to talk
       </span>
-      <span class="mode-chip">{mode === 'toggle' ? 'Toggle' : mode === 'vad' ? 'VAD' : 'Push-to-talk'}</span>
     </div>
   </section>
 
-  <!-- How it works -->
   <section class="steps">
-    <div class="step"><span class="num">1</span><div><strong>Hold the hotkey</strong><p>Anywhere — any app, any text field.</p></div></div>
-    <div class="step"><span class="num">2</span><div><strong>Speak naturally</strong><p>The pill shows it's listening.</p></div></div>
-    <div class="step"><span class="num">3</span><div><strong>Release</strong><p>Your words paste where the cursor is.</p></div></div>
+    <div class="step"><span class="num">1</span><div><strong>Hold hotkey</strong><p>Any app, any field.</p></div></div>
+    <div class="step"><span class="num">2</span><div><strong>Speak</strong><p>Pill shows listening.</p></div></div>
+    <div class="step"><span class="num">3</span><div><strong>Release</strong><p>Text pastes at cursor.</p></div></div>
   </section>
 
-  <!-- At-a-glance cards -->
   <div class="grid">
     <section class="mini">
       <div class="mini-label">Model</div>
       {#if modelStatus?.ready}
-        <div class="mini-value ok">● {modelStatus.variant}</div>
-        <div class="mini-sub">{modelStatus.fileSizeMb} MB · downloaded · {accelInfo?.inUse ?? 'CPU'}</div>
+        <div class="mini-value ok">● {modelStatus.displayName || modelStatus.variant}</div>
+        <div class="mini-sub">{modelStatus.fileSizeMb} MB · {accelInfo?.inUse ?? 'CPU'}</div>
       {:else if modelStatus}
         <div class="mini-value warn">incomplete</div>
         <button class="link" onclick={downloadModelNow} disabled={busy}>Re-download</button>
@@ -225,87 +222,85 @@
 </div>
 
 <style>
-  .home { display: flex; flex-direction: column; gap: 18px; }
+  .home { display: flex; flex-direction: column; gap: 12px; }
 
-  .hero { display: flex; align-items: center; gap: 16px; padding: 8px 0 4px; }
-  .hero-mark { display: inline-flex; flex-shrink: 0; filter: drop-shadow(0 4px 16px rgba(124, 58, 237, 0.45)); }
+  .hero { display: flex; align-items: center; gap: 12px; padding: 2px 0; }
+  .hero-mark { display: inline-flex; flex-shrink: 0; }
   h1 {
-    margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
-    background: var(--brand-gradient); -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent;
+    margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.03em;
+    color: var(--text);
   }
-  .tagline { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+  .tagline { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
 
-  /* Status hero */
   .status-card {
     position: relative;
     overflow: hidden;
     border: 1px solid var(--border);
-    border-radius: var(--r-xl);
-    padding: 22px 24px;
-    background:
-      radial-gradient(120% 120% at 0% 0%, rgba(124, 58, 237, 0.18), transparent 55%),
-      linear-gradient(180deg, var(--card-2), var(--card));
-    box-shadow: var(--shadow-2);
-    transition: box-shadow 200ms ease, border-color 200ms ease;
+    border-radius: var(--r-lg);
+    padding: 14px 16px;
+    background: var(--card);
+    box-shadow: var(--shadow-1);
+    transition: border-color 180ms ease;
   }
-  .status-card[data-state='listening'] { border-color: rgba(196, 181, 253, 0.5); box-shadow: var(--shadow-accent); }
-  .status-card[data-state='success'] { border-color: rgba(92, 255, 156, 0.4); }
-  .status-card[data-state='error'] { border-color: rgba(255, 92, 124, 0.5); }
+  .status-card[data-state='listening'] { border-color: var(--accent); }
+  .status-card[data-state='success'] { border-color: rgba(52, 211, 153, 0.4); }
+  .status-card[data-state='error'] { border-color: rgba(248, 113, 113, 0.4); }
 
-  .status-top { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-  .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
-  .status-dot.live { background: var(--danger); box-shadow: 0 0 10px var(--danger); animation: pulse 1.2s ease-in-out infinite; }
+  .status-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .status-dot.live { background: var(--danger); animation: pulse 1.2s ease-in-out infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
-  .status-label { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+  .status-label { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; flex: 1; min-width: 0; }
 
-  .status-bars { display: flex; align-items: flex-end; gap: 6px; height: 56px; margin-bottom: 18px; }
+  .status-bars { display: flex; align-items: center; gap: 4px; height: 36px; margin-bottom: 10px; padding: 4px 6px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); }
   .sbar {
-    flex: 1; border-radius: 4px; align-self: stretch;
-    background: rgba(196, 181, 253, 0.16);
+    flex: 1; border-radius: 3px; height: 100%;
+    background: rgba(255, 255, 255, 0.12);
     transform-origin: center; transform: scaleY(calc(0.12 + var(--mag, 0) * 0.88));
     transition: transform 70ms ease-out;
   }
   .status-card[data-state='listening'] .sbar {
-    background: linear-gradient(180deg, var(--accent), var(--accent-deep));
-    box-shadow: 0 0 8px rgba(196, 181, 253, 0.35);
+    background: var(--accent);
   }
 
-  .status-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+  .status-foot { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
   .status-foot kbd {
-    background: var(--bg-elevated); border: 1px solid var(--border-strong); border-bottom-width: 2px;
-    border-radius: 5px; padding: 2px 7px; margin: 0 2px;
-    font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 11px; color: var(--text);
+    background: var(--bg-elevated); border: 1px solid var(--border-strong);
+    border-radius: 4px; padding: 1px 6px; margin: 0 1px;
+    font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 10.5px; color: var(--text);
   }
   .mode-chip {
-    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
-    padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); flex-shrink: 0;
   }
 
-  /* Steps */
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .step {
-    display: flex; gap: 10px; align-items: flex-start;
-    background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px;
+    display: flex; gap: 8px; align-items: flex-start;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px;
   }
   .step .num {
-    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%;
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700; color: #fff; background: var(--brand-gradient);
+    font-size: 10px; font-weight: 700; color: #fff; background: var(--accent-deep);
   }
-  .step strong { font-size: 13px; color: var(--text); }
-  .step p { margin: 2px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+  .step strong { font-size: 12px; color: var(--text); display: block; }
+  .step p { margin: 1px 0 0; font-size: 11px; color: var(--muted); line-height: 1.35; }
 
-  /* Mini cards */
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .mini { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px 18px; }
-  .mini-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 8px; }
-  .mini-value { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
-  .mini-value.ok { color: var(--ok); font-size: 16px; }
-  .mini-value.warn { color: var(--warn); font-size: 16px; }
-  .mini-value.muted { color: var(--muted); font-size: 16px; }
-  .mini-sub { margin-top: 4px; font-size: 11px; color: var(--muted); font-family: ui-monospace, "JetBrains Mono", monospace; }
-  .link { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 4px 0 0; font-family: inherit; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mini { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px 14px; }
+  .mini-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 6px; }
+  .mini-value { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+  .mini-value.ok { color: var(--ok); font-size: 14px; }
+  .mini-value.warn { color: var(--warn); font-size: 14px; }
+  .mini-value.muted { color: var(--muted); font-size: 14px; }
+  .mini-sub { margin-top: 3px; font-size: 10.5px; color: var(--muted); font-family: ui-monospace, "JetBrains Mono", monospace; }
+  .link { background: none; border: none; color: var(--accent); font-size: 11.5px; cursor: pointer; padding: 3px 0 0; font-family: inherit; }
   .link:hover:not(:disabled) { text-decoration: underline; }
   .link:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  @media (max-width: 520px) {
+    .steps { grid-template-columns: 1fr; }
+    .grid { grid-template-columns: 1fr; }
+  }
 </style>
