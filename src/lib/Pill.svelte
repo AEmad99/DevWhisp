@@ -13,6 +13,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { invoke } from '@tauri-apps/api/core';
   import BrandMark from './BrandMark.svelte';
+  import AppIcon from './AppIcon.svelte';
   import { getHotkey } from './api';
 
   type PillStateValue = 'idle' | 'listening' | 'paused' | 'processing' | 'success' | 'error';
@@ -373,7 +374,7 @@
     {:else}
       <button class="idle-button" onclick={onClickIdle} aria-label="Start push-to-talk">
         <span class="brand-mark" aria-hidden="true">
-          <BrandMark size={16} gradient={false} />
+          <AppIcon size={16} />
         </span>
         <span class="label">Ready</span>
         {#if showHotkeyHint}
