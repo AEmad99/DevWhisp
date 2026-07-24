@@ -21,7 +21,6 @@ use anyhow::{anyhow, Result};
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 use serde::Serialize;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
@@ -418,6 +417,11 @@ fn modifier_label(m: Modifiers) -> &'static str {
     }
 }
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Physical key press state flag to suppress OS auto-repeat events.
+static HOTKEY_DOWN: AtomicBool = AtomicBool::new(false);
+
 /// Unified hotkey dispatch honoring the configured mode. In push-to-talk the
 /// press starts and the release stops; in toggle the press flips recording
 /// on/off and key-releases are ignored.
@@ -425,6 +429,15 @@ fn modifier_label(m: Modifiers) -> &'static str {
 /// and extra presses while active are ignored (manual stop via tray/keyboard
 /// still works).
 pub fn on_hotkey<R: Runtime>(app: &AppHandle<R>, pressed: bool) -> Result<()> {
+    if pressed {
+        // Suppress OS key auto-repeat events while the shortcut key is held down
+        if HOTKEY_DOWN.swap(true, Ordering::SeqCst) {
+            return Ok(());
+        }
+    } else {
+        HOTKEY_DOWN.store(false, Ordering::SeqCst);
+    }
+
     let mode = MODE.read().clone();
     if mode.eq_ignore_ascii_case("toggle") {
         if pressed {

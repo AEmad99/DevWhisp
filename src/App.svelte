@@ -15,6 +15,8 @@ import { onMount } from 'svelte';
   import AppIcon from './lib/AppIcon.svelte';
   import NavIcon from './lib/NavIcon.svelte';
   import OnboardingWizard from './lib/OnboardingWizard.svelte';
+  import DownloadProgressBanner from './lib/DownloadProgressBanner.svelte';
+  import { downloadStore } from './lib/downloadStore';
   import { getAppInfo, type AppInfo, type IpcError, formatIpcError } from './lib/api';
 
   type View = 'dashboard' | 'history' | 'settings';
@@ -67,6 +69,8 @@ import { onMount } from 'svelte';
   // Note: components already handle most IPC errors inline; this is a safety net
   // for things like the Settings dictionary or History load failing async.
   onMount(() => {
+    downloadStore.init();
+
     const onRejection = (event: PromiseRejectionEvent) => {
       handleGlobalError(event.reason);
     };
@@ -190,6 +194,7 @@ import { onMount } from 'svelte';
 
   <main class="content">
     <div class="content-inner">
+      <DownloadProgressBanner />
       {#if currentView === 'dashboard'}
         <Dashboard />
       {:else if currentView === 'history'}

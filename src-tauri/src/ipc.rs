@@ -566,9 +566,20 @@ pub async fn download_model(app: tauri::AppHandle, variant: String) -> Result<St
     );
 
     let total_mb = v.approx_size_mb() as u64;
-    let path: PathBuf = crate::stt::model_manager::download(v, Some(app.clone()))
-        .await
-        .map_err(|e| e.to_string())?;
+    let download_res = crate::stt::model_manager::download(v, Some(app.clone())).await;
+    if let Err(ref e) = download_res {
+        let _ = app.emit(
+            "model-download-progress",
+            serde_json::json!({
+                "variant": variant,
+                "pct": 0,
+                "downloadedMB": 0,
+                "totalMB": total_mb,
+                "error": e.to_string()
+            }),
+        );
+    }
+    let path: PathBuf = download_res.map_err(|e| e.to_string())?;
 
     // Model switch: drop any previously loaded whisper context.
     crate::stt::whisper::reset();

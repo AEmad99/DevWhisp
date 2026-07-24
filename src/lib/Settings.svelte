@@ -13,6 +13,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
   import AppIcon from './AppIcon.svelte';
+  import { downloadStore } from './downloadStore';
   import {
     getAppInfo,
     getModelStatus,
@@ -434,7 +435,7 @@
     modelBusy = true;
     modelError = null;
     try {
-      await downloadModel(variant);
+      await downloadStore.download(variant);
       await refreshModel();
     } catch (e) {
       modelError = formatIpcError(e as IpcError);
@@ -877,17 +878,21 @@
             {#if m.path}<div class="row-sub mono">{m.path}</div>{/if}
           </div>
           <div class="model-size">
-            {#if m.ready}
+            {#if downloadStore.variant === m.variant && downloadStore.isDownloading}
+              <span class="warn font-mono">Downloading… {downloadStore.pct.toFixed(0)}% ({downloadStore.downloadedMB}/{downloadStore.totalMB} MB)</span>
+            {:else if m.ready}
               <span class="ok">● {m.fileSizeMb} MB · ready</span>
             {:else}
               <span class="muted">~{m.expectedSizeMb} MB · not downloaded</span>
             {/if}
           </div>
           <div class="model-actions">
-            {#if !m.ready}
-              <button onclick={() => downloadModelNow(m.variant)} disabled={modelBusy}>Download</button>
+            {#if downloadStore.variant === m.variant && downloadStore.isDownloading}
+              <button disabled>Downloading…</button>
+            {:else if !m.ready}
+              <button onclick={() => downloadModelNow(m.variant)} disabled={modelBusy || downloadStore.isDownloading}>Download</button>
             {:else if m.variant !== modelStatus?.variant}
-              <button onclick={() => activateModel(m.variant)} disabled={modelBusy}>Use this model</button>
+              <button onclick={() => activateModel(m.variant)} disabled={modelBusy || downloadStore.isDownloading}>Use this model</button>
             {/if}
           </div>
         </div>

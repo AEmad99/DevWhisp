@@ -19,6 +19,7 @@
     type HistoryEntry,
     type AccelerationInfo,
   } from './api';
+  import { downloadStore } from './downloadStore';
   import AppIcon from './AppIcon.svelte';
 
   type PillState = 'idle' | 'listening' | 'processing' | 'success' | 'error';
@@ -109,16 +110,11 @@
   }
 
   async function downloadModelNow() {
-    busy = true;
-    downloadMsg = 'Downloading…';
     try {
-      await downloadModel(RECOMMENDED_MODEL);
-      downloadMsg = null;
+      await downloadStore.download(RECOMMENDED_MODEL);
       await refresh();
     } catch {
-      downloadMsg = 'Download failed — check your connection.';
-    } finally {
-      busy = false;
+      /* Handled by downloadStore */
     }
   }
 
@@ -201,13 +197,16 @@
   <div class="grid">
     <section class="mini">
       <div class="mini-label">Model</div>
-      {#if modelStatus?.ready}
+      {#if downloadStore.isDownloading}
+        <div class="mini-value warn">Downloading… {downloadStore.pct.toFixed(0)}%</div>
+        <div class="mini-sub">{downloadStore.downloadedMB} / {downloadStore.totalMB} MB</div>
+      {:else if modelStatus?.ready}
         <div class="mini-value ok">● {modelStatus.displayName || modelStatus.variant}</div>
         <div class="mini-sub">{modelStatus.fileSizeMb} MB · {accelInfo?.inUse ?? 'CPU'}</div>
       {:else if modelStatus}
         <div class="mini-value warn">incomplete</div>
-        <button class="link" onclick={downloadModelNow} disabled={busy}>Re-download</button>
-        {#if downloadMsg}<div class="mini-sub">{downloadMsg}</div>{/if}
+        <button class="link" onclick={downloadModelNow} disabled={downloadStore.isDownloading}>Re-download</button>
+        {#if downloadStore.error}<div class="mini-sub danger">{downloadStore.error}</div>{/if}
       {:else}
         <div class="mini-value muted">checking…</div>
       {/if}

@@ -225,8 +225,15 @@ impl VadEngine {
             self.speech_peak = self.speech_peak.clamp(self.base_threshold * 2.0, 1.0);
         }
 
-        let threshold = self.current_threshold();
-        let is_speech = rms >= threshold;
+        let base_thresh = self.current_threshold();
+        // Use hysteresis: entering/resuming speech requires full threshold,
+        // while continuing ongoing speech allows a slightly lower threshold (85%).
+        let effective_thresh = if self.state == VadState::Speaking {
+            base_thresh * 0.85
+        } else {
+            base_thresh
+        };
+        let is_speech = rms >= effective_thresh;
 
         // ------------------------------------------------------------------
         // 3. State machine
@@ -257,7 +264,7 @@ impl VadEngine {
                     // Brief silence → transition to Paused, keep recording.
                     self.state = VadState::Paused;
                     self.state_entered_at = now;
-                    self.pause_emitted = false;
+                    self.pause_emitted = true;
                     VadDecision::Paused
                 } else {
                     // Still within the brief-pause window → keep going.
@@ -269,13 +276,8 @@ impl VadEngine {
                     self.state = VadState::Idle;
                     VadDecision::ShouldStop
                 } else {
-                    // Stay paused.  Emit UI once per episode.
-                    if !self.pause_emitted {
-                        self.pause_emitted = true;
-                        VadDecision::Paused
-                    } else {
-                        VadDecision::Continue
-                    }
+                    // Stay paused consistently until speech resumes or silence threshold triggers stop.
+                    VadDecision::Paused
                 }
             }
         }
@@ -409,14 +411,24 @@ mod tests {
 
     #[test]
     fn pause_state_transition() {
-        let mut e = VadEngine::new(0.02, false, Some(100), Some(300), Some(50));
+        let mut e = VadEngine::new(0.02, false, Some(10), Some(300), Some(50));
         e.on_recording_start();
         // Start speaking.
         assert_eq!(e.process(0.05), VadDecision::Continue);
-        // Drop below threshold — still within 100 ms pause window.
-        assert_eq!(e.process(0.005), VadDecision::Continue);
-        // We can't test exact timing without sleep, but we can verify the
-        // state machine logic: after a long-enough silence it should become
-        // Paused then eventually ShouldStop.
+        assert_eq!(e.state(), VadState::Speaking);
+        // Sleep 15ms so silence exceeds pause_ms (10ms)
+        std::thread::sleep(Duration::from_millis(15));
+        assert_eq!(e.process(0.005), VadDecision::Paused);
+        assert_eq!(e.state(), VadState::Paused);
+        // Subsequent ticks during silence should consistently return Paused (no flickering!)
+        assert_eq!(e.process(0.005), VadDecision::Paused);
+        assert_eq!(e.state(), VadState::Paused);
+        // Resuming speech transitions back to Speaking and Continue decision
+        let mut last_dec = VadDecision::Paused;
+        for _ in 0..8 {
+            last_dec = e.process(0.05);
+        }
+        assert_eq!(last_dec, VadDecision::Continue);
+        assert_eq!(e.state(), VadState::Speaking);
     }
 }

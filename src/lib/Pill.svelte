@@ -14,6 +14,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import BrandMark from './BrandMark.svelte';
   import AppIcon from './AppIcon.svelte';
+  import { downloadStore } from './downloadStore';
   import { getHotkey } from './api';
 
   type PillStateValue = 'idle' | 'listening' | 'paused' | 'processing' | 'success' | 'error';
@@ -203,6 +204,7 @@
   }
 
   onMount(async () => {
+    downloadStore.init();
     pillStyle = loadPillStyle();
 
     try {
@@ -238,13 +240,15 @@
     try {
       unlistenState = await listen<PillStatePayload>('pill-state', (event) => {
         const next = event.payload?.state ?? 'idle';
+        const nextMsg = event.payload?.message ?? null;
         const prev = pillState;
 
-        pillState = next;
-        errorMessage = event.payload?.message ?? null;
-        if (next !== 'error') {
-          errorMessage = null;
+        if (next === prev && (next !== 'error' || nextMsg === errorMessage)) {
+          return;
         }
+
+        pillState = next;
+        errorMessage = next !== 'error' ? null : nextMsg;
         if (next === 'listening' || next === 'paused') {
           startWaveLoop();
         } else {
@@ -365,6 +369,16 @@
       <span class="err-mark" aria-hidden="true">!</span>
       <div class="label err" title={errorMessage ?? undefined}>
         {errorMessage ?? 'Error'}
+      </div>
+      <button class="close" onclick={(e) => { e.stopPropagation(); close(); }} title="Hide pill" aria-label="Hide pill">
+        <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+          <path d="M2 2l8 8M10 2L2 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
+      </button>
+    {:else if downloadStore.isDownloading}
+      <span class="spinner" aria-hidden="true"></span>
+      <div class="label" title="Downloading model: {downloadStore.pct.toFixed(1)}%">
+        Downloading {downloadStore.pct.toFixed(0)}%
       </div>
       <button class="close" onclick={(e) => { e.stopPropagation(); close(); }} title="Hide pill" aria-label="Hide pill">
         <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
@@ -495,14 +509,12 @@
     --bg: rgba(20, 16, 32, calc(var(--pill-bg-alpha) * 1.2));
     --border: rgba(167, 139, 250, 0.4);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.55);
-    animation: pill-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .pill.paused {
     --bg: rgba(36, 26, 12, calc(var(--pill-bg-alpha) * 1.2));
     --border: rgba(251, 191, 36, 0.4);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.55);
-    animation: pill-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .pill.processing {

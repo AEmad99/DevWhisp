@@ -6,7 +6,8 @@
    */
   import { onMount } from 'svelte';
   import AppIcon from './AppIcon.svelte';
-  import { getModelStatus, getHotkey, type ModelStatus } from './api';
+  import { downloadStore } from './downloadStore';
+  import { getModelStatus, getHotkey, RECOMMENDED_MODEL, type ModelStatus } from './api';
 
   let { done }: { done: () => void } = $props();
 
@@ -28,6 +29,15 @@
     getModelStatus().then((m) => (model = m)).catch(() => {});
     getHotkey().then((h) => (hotkeyLabel = h)).catch(() => {});
   });
+
+  async function startDownloadInWizard() {
+    try {
+      await downloadStore.download(RECOMMENDED_MODEL);
+      model = await getModelStatus();
+    } catch {
+      /* Handled by downloadStore */
+    }
+  }
 
   function next() {
     if (step < last) step += 1;
@@ -77,12 +87,19 @@
           It runs fully offline on your CPU. One-time download (~142 MB for Base).
         </p>
         <div class="status {model?.ready ? 'ready' : 'pending'}">
-          {#if model?.ready}
+          {#if downloadStore.isDownloading}
+            <div class="wiz-dl">
+              <div>Downloading model… <strong>{downloadStore.pct.toFixed(0)}%</strong></div>
+              <div class="wiz-sub">{downloadStore.downloadedMB} / {downloadStore.totalMB} MB</div>
+              <div class="wiz-track"><div class="wiz-fill" style:width="{downloadStore.pct}%"></div></div>
+            </div>
+          {:else if model?.ready}
             ● Model ready · {model.fileSizeMb} MB
-          {:else if model}
-            Preparing model… {model.fileSizeMb}/{model.expectedSizeMb} MB
           {:else}
-            Checking model…
+            <div class="wiz-dl-prompt">
+              <span>Model not downloaded (~142 MB)</span>
+              <button class="primary wiz-btn" onclick={startDownloadInWizard}>Download Base Model</button>
+            </div>
           {/if}
         </div>
       {:else if step === 3}
@@ -196,6 +213,15 @@
   }
   .status.ready { color: var(--ok); border-color: rgba(52, 211, 153, 0.3); }
   .status.pending { color: var(--warn); }
+
+  .wiz-dl { display: flex; flex-direction: column; gap: 4px; padding: 4px 2px; }
+  .wiz-sub { font-size: 11px; opacity: 0.8; }
+  .wiz-track { height: 5px; width: 100%; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-top: 2px; }
+  .wiz-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 150ms ease; }
+
+  .wiz-dl-prompt { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 0; }
+  .wiz-btn { padding: 6px 14px; font-size: 12px; border-radius: 6px; border: none; background: var(--accent-deep); color: #fff; cursor: pointer; }
+  .wiz-btn:hover { filter: brightness(1.1); }
 
   .keys { display: flex; align-items: center; gap: 6px; margin: 6px 0 12px; }
   .keys span { color: var(--muted); }
