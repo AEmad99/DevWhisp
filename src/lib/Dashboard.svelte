@@ -19,7 +19,7 @@
     type HistoryEntry,
     type AccelerationInfo,
   } from './api';
-  import { downloadStore } from './downloadStore';
+  import { downloadStore } from './downloadStore.svelte';
   import AppIcon from './AppIcon.svelte';
 
   type PillState = 'idle' | 'listening' | 'processing' | 'success' | 'error';

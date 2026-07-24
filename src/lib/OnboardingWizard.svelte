@@ -6,7 +6,7 @@
    */
   import { onMount } from 'svelte';
   import AppIcon from './AppIcon.svelte';
-  import { downloadStore } from './downloadStore';
+  import { downloadStore } from './downloadStore.svelte';
   import { getModelStatus, getHotkey, RECOMMENDED_MODEL, type ModelStatus } from './api';
 
   let { done }: { done: () => void } = $props();

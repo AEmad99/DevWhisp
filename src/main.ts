@@ -73,6 +73,7 @@ try {
   requestAnimationFrame(() => {
     requestAnimationFrame(hideSplash)
   })
+  setTimeout(hideSplash, 400)
 } catch (e) {
   const msg = e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e)
   showFatal(`Mount failed: ${msg}`)

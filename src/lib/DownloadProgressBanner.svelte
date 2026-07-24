@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { downloadStore } from './downloadStore';
+  import { downloadStore } from './downloadStore.svelte';
 
   const visible = $derived(
     downloadStore.isDownloading || downloadStore.isCompleted || downloadStore.error !== null

@@ -16,7 +16,7 @@ import { onMount } from 'svelte';
   import NavIcon from './lib/NavIcon.svelte';
   import OnboardingWizard from './lib/OnboardingWizard.svelte';
   import DownloadProgressBanner from './lib/DownloadProgressBanner.svelte';
-  import { downloadStore } from './lib/downloadStore';
+  import { downloadStore } from './lib/downloadStore.svelte';
   import { getAppInfo, type AppInfo, type IpcError, formatIpcError } from './lib/api';
 
   type View = 'dashboard' | 'history' | 'settings';

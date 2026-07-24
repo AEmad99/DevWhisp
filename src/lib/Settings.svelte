@@ -13,7 +13,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
   import AppIcon from './AppIcon.svelte';
-  import { downloadStore } from './downloadStore';
+  import { downloadStore } from './downloadStore.svelte';
   import {
     getAppInfo,
     getModelStatus,

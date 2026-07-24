@@ -14,7 +14,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import BrandMark from './BrandMark.svelte';
   import AppIcon from './AppIcon.svelte';
-  import { downloadStore } from './downloadStore';
+  import { downloadStore } from './downloadStore.svelte';
   import { getHotkey } from './api';
 
   type PillStateValue = 'idle' | 'listening' | 'paused' | 'processing' | 'success' | 'error';
