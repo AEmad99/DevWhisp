@@ -216,7 +216,11 @@ export const reinjectText = (text: string): Promise<void> =>
 // Text-formatting options (persisted; read by the transcription pipeline)
 // ---------------------------------------------------------------------------
 
-export type FormatOptions = { autoCapitalize: boolean; appendSpace: boolean };
+export type FormatOptions = {
+  autoCapitalize: boolean;
+  appendSpace: boolean;
+  pasteUppercase: boolean;
+};
 
 export const getFormatOptions = (): Promise<FormatOptions> =>
   invokeOrThrow<FormatOptions>('get_format_options');
@@ -224,8 +228,13 @@ export const getFormatOptions = (): Promise<FormatOptions> =>
 export const setFormatOptions = (
   autoCapitalize: boolean,
   appendSpace: boolean,
+  pasteUppercase: boolean,
 ): Promise<void> =>
-  invokeOrThrow<void>('set_format_options', { autoCapitalize, appendSpace });
+  invokeOrThrow<void>('set_format_options', {
+    autoCapitalize,
+    appendSpace,
+    pasteUppercase,
+  });
 
 // Acceleration (GPU/CPU)
 export type AccelerationInfo = { mode: string; detected: string; inUse: string };

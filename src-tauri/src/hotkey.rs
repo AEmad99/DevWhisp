@@ -595,6 +595,7 @@ pub(crate) fn transcribe_and_inject<R: Runtime>(app: AppHandle<R>, samples: Vec<
                 let opts = crate::formatter::FormatOptions {
                     auto_capitalize: crate::config::load_bool("capitalize_first", true),
                     append_space: crate::config::load_bool("append_space", true),
+                    paste_uppercase: crate::config::load_bool("paste_uppercase", false),
                     dict: pairs,
                 };
                 let formatted = crate::formatter::format_transcript(&t, &opts);

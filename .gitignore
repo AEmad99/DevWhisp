@@ -38,6 +38,7 @@ yarn-error.log*
 # runtime / cache
 .cache/
 .tmp/
+.tmp*
 
 # private agent state
 .claude/

@@ -1,6 +1,6 @@
 [package]
 name = "devwhisp"
-version = "0.1.6"
+version = "0.1.7"
 description = "Small, tray-resident, push-to-talk voice-to-text desktop app with embedded STT"
 authors = ["Ahmed Emad"]
 license = "TBD"

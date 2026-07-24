@@ -30,6 +30,8 @@ pub struct FormatOptions {
     pub auto_capitalize: bool,
     #[serde(default = "default_true")]
     pub append_space: bool,
+    #[serde(default = "default_false")]
+    pub paste_uppercase: bool,
     /// Replacement pairs applied left-to-right, case-insensitive, whole-word.
     #[serde(default)]
     pub dict: Vec<(String, String)>,
@@ -40,6 +42,7 @@ impl Default for FormatOptions {
         Self {
             auto_capitalize: default_true(),
             append_space: default_true(),
+            paste_uppercase: default_false(),
             dict: Vec::new(),
         }
     }
@@ -47,6 +50,10 @@ impl Default for FormatOptions {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_false() -> bool {
+    false
 }
 
 /// Run the full formatting pipeline on `text`.
@@ -75,6 +82,10 @@ pub fn format_transcript(text: &str, options: &FormatOptions) -> String {
         if word_count >= 4 {
             s = s.trim_end().to_string() + ".";
         }
+    }
+
+    if options.paste_uppercase {
+        s = s.to_uppercase();
     }
 
     s
@@ -174,10 +185,11 @@ fn capitalize_first(s: &mut String) {
 mod tests {
     use super::*;
 
-    fn opts(auto_cap: bool, append: bool, dict: Vec<(&str, &str)>) -> FormatOptions {
+    fn opts(auto_cap: bool, append: bool, uppercase: bool, dict: Vec<(&str, &str)>) -> FormatOptions {
         FormatOptions {
             auto_capitalize: auto_cap,
             append_space: append,
+            paste_uppercase: uppercase,
             dict: dict
                 .into_iter()
                 .map(|(a, b)| (a.to_string(), b.to_string()))
@@ -187,22 +199,22 @@ mod tests {
 
     #[test]
     fn capitalizes_hello_world_dot() {
-        let s = format_transcript("hello world.", &opts(true, false, vec![]));
+        let s = format_transcript("hello world.", &opts(true, false, false, vec![]));
         assert_eq!(s, "Hello world.");
     }
 
     #[test]
     fn appends_trailing_space() {
-        let s = format_transcript("hello", &opts(false, true, vec![]));
+        let s = format_transcript("hello", &opts(false, true, false, vec![]));
         assert_eq!(s, "hello ");
         // Don't double-append when input already ends with whitespace.
-        let s2 = format_transcript("hello. ", &opts(false, true, vec![]));
+        let s2 = format_transcript("hello. ", &opts(false, true, false, vec![]));
         assert_eq!(s2, "hello. ");
     }
 
     #[test]
     fn no_trailing_space_when_disabled() {
-        let s = format_transcript("hello", &opts(false, false, vec![]));
+        let s = format_transcript("hello", &opts(false, false, false, vec![]));
         assert_eq!(s, "hello");
     }
 
@@ -210,13 +222,13 @@ mod tests {
     fn dict_case_insensitive_whole_word_ai() {
         let s = format_transcript(
             "ai is cool",
-            &opts(false, false, vec![("ai", "AI")]),
+            &opts(false, false, false, vec![("ai", "AI")]),
         );
         assert_eq!(s, "AI is cool");
         // Mixed case input also triggers.
         let s2 = format_transcript(
             "Ai is cooler than AI but said ai",
-            &opts(false, false, vec![("ai", "AI")]),
+            &opts(false, false, false, vec![("ai", "AI")]),
         );
         // "said" must not be mangled (whole-word rule).
         assert_eq!(s2, "AI is cooler than AI but said AI.");
@@ -227,23 +239,23 @@ mod tests {
         // "ai" should NOT match inside "said" or "tail".
         let s = format_transcript(
             "she said no to the tail",
-            &opts(false, false, vec![("ai", "AI")]),
+            &opts(false, false, false, vec![("ai", "AI")]),
         );
         assert_eq!(s, "she said no to the tail.");
     }
 
     #[test]
     fn empty_input_returns_empty() {
-        assert_eq!(format_transcript("", &opts(true, true, vec![])), "");
-        assert_eq!(format_transcript("   ", &opts(true, true, vec![])), "");
-        assert_eq!(format_transcript("\n\t", &opts(true, true, vec![])), "");
+        assert_eq!(format_transcript("", &opts(true, true, false, vec![])), "");
+        assert_eq!(format_transcript("   ", &opts(true, true, false, vec![])), "");
+        assert_eq!(format_transcript("\n\t", &opts(true, true, false, vec![])), "");
     }
 
     #[test]
     fn multiple_consecutive_dict_hits() {
         let s = format_transcript(
             "ts and js and ts and js",
-            &opts(false, false, vec![("ts", "TypeScript"), ("js", "JavaScript")]),
+            &opts(false, false, false, vec![("ts", "TypeScript"), ("js", "JavaScript")]),
         );
         assert_eq!(
             s,
@@ -255,21 +267,21 @@ mod tests {
     fn capitalization_with_dict() {
         let s = format_transcript(
             "ai is great",
-            &opts(true, false, vec![("ai", "AI")]),
+            &opts(true, false, false, vec![("ai", "AI")]),
         );
         assert_eq!(s, "AI is great");
     }
 
     #[test]
     fn trim_before_processing() {
-        let s = format_transcript("   hello world  ", &opts(true, false, vec![]));
+        let s = format_transcript("   hello world  ", &opts(true, false, false, vec![]));
         assert_eq!(s, "Hello world");
     }
 
     #[test]
     fn empty_dict_pair_is_skipped() {
         // Should not infinite-loop or panic.
-        let s = format_transcript("hello", &opts(false, false, vec![("", "X")]));
+        let s = format_transcript("hello", &opts(false, false, false, vec![("", "X")]));
         assert_eq!(s, "hello");
     }
 
@@ -279,7 +291,7 @@ mod tests {
         // the shorter one is listed first (plan §6: longest-match-first).
         let s = format_transcript(
             "next js rocks",
-            &opts(false, false, vec![("js", "JavaScript"), ("next js", "Next.js")]),
+            &opts(false, false, false, vec![("js", "JavaScript"), ("next js", "Next.js")]),
         );
         assert_eq!(s, "Next.js rocks");
         // Replacement output is never re-scanned: the "js" inside "Next.js"
@@ -291,8 +303,16 @@ mod tests {
         // Same result regardless of insertion order.
         let a = format_transcript(
             "deploy to k8s now",
-            &opts(false, false, vec![("k8s", "Kubernetes"), ("deploy to k8s", "ship it")]),
+            &opts(false, false, false, vec![("k8s", "Kubernetes"), ("deploy to k8s", "ship it")]),
         );
         assert_eq!(a, "ship it now");
+    }
+
+    #[test]
+    fn converts_to_all_uppercase_when_enabled() {
+        let s = format_transcript("hello world", &opts(false, false, true, vec![]));
+        assert_eq!(s, "HELLO WORLD");
+        let s2 = format_transcript("hello world", &opts(true, true, true, vec![]));
+        assert_eq!(s2, "HELLO WORLD ");
     }
 }

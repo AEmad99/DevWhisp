@@ -74,6 +74,7 @@
   const LS_KEYS = {
     autoCapitalize: 'devwhisp.settings.autoCapitalize',
     appendSpace: 'devwhisp.settings.appendSpace',
+    pasteUppercase: 'devwhisp.settings.pasteUppercase',
     showPillOnStartup: 'devwhisp.settings.showPillOnStartup',
     pillStyle: 'devwhisp.pill.style',
     accent: 'devwhisp.settings.accent',
@@ -126,6 +127,7 @@
   // ---- Reactive state ---------------------------------------------------
   let autoCapitalize = $state(true);
   let appendSpace = $state(true);
+  let pasteUppercase = $state(false);
   let showPillOnStartup = $state(true);
 
   let autostartOn = $state(false);
@@ -210,6 +212,7 @@
   onMount(() => {
     autoCapitalize = lsGet<boolean>(LS_KEYS.autoCapitalize, true);
     appendSpace = lsGet<boolean>(LS_KEYS.appendSpace, true);
+    pasteUppercase = lsGet<boolean>(LS_KEYS.pasteUppercase, false);
     showPillOnStartup = lsGet<boolean>(LS_KEYS.showPillOnStartup, true);
 
     const savedPill = lsGet<PillStyle | null>(LS_KEYS.pillStyle, null);
@@ -238,6 +241,7 @@
       .then((o) => {
         autoCapitalize = o.autoCapitalize;
         appendSpace = o.appendSpace;
+        pasteUppercase = o.pasteUppercase;
       })
       .catch(() => {});
     refreshModel();
@@ -317,8 +321,9 @@
   function persistFormat() {
     lsSet(LS_KEYS.autoCapitalize, autoCapitalize);
     lsSet(LS_KEYS.appendSpace, appendSpace);
+    lsSet(LS_KEYS.pasteUppercase, pasteUppercase);
     // Persist to the backend so the hotkey/tray transcription paths pick it up.
-    void setFormatOptions(autoCapitalize, appendSpace).catch(() => {});
+    void setFormatOptions(autoCapitalize, appendSpace, pasteUppercase).catch(() => {});
   }
   function onAutoCapitalizeChange(value: boolean) {
     autoCapitalize = value;
@@ -326,6 +331,10 @@
   }
   function onAppendSpaceChange(value: boolean) {
     appendSpace = value;
+    persistFormat();
+  }
+  function onPasteUppercaseChange(value: boolean) {
+    pasteUppercase = value;
     persistFormat();
   }
   function onShowPillChange(value: boolean) {
@@ -1101,6 +1110,22 @@
           type="checkbox"
           checked={appendSpace}
           onchange={(e) => onAppendSpaceChange((e.currentTarget as HTMLInputElement).checked)}
+        />
+      </div>
+    </label>
+
+    <div class="divider"></div>
+
+    <label class="row">
+      <div class="row-main">
+        <div class="row-title">Paste all in uppercase</div>
+        <div class="row-sub">"hello world" → "HELLO WORLD"</div>
+      </div>
+      <div class="row-ctl">
+        <input
+          type="checkbox"
+          checked={pasteUppercase}
+          onchange={(e) => onPasteUppercaseChange((e.currentTarget as HTMLInputElement).checked)}
         />
       </div>
     </label>

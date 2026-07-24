@@ -153,6 +153,7 @@ pub fn reinject_text(text: String) -> Result<(), String> {
 pub struct FormatSettings {
     pub auto_capitalize: bool,
     pub append_space: bool,
+    pub paste_uppercase: bool,
 }
 
 /// Read the persisted formatting options (so Settings reflects real state).
@@ -161,15 +162,21 @@ pub fn get_format_options() -> FormatSettings {
     FormatSettings {
         auto_capitalize: crate::config::load_bool("capitalize_first", true),
         append_space: crate::config::load_bool("append_space", true),
+        paste_uppercase: crate::config::load_bool("paste_uppercase", false),
     }
 }
 
 /// Persist the formatting options. The hotkey + tray transcription paths read
 /// these on every transcription, so toggling them takes effect immediately.
 #[tauri::command]
-pub fn set_format_options(auto_capitalize: bool, append_space: bool) -> Result<(), String> {
+pub fn set_format_options(
+    auto_capitalize: bool,
+    append_space: bool,
+    paste_uppercase: bool,
+) -> Result<(), String> {
     crate::config::save_bool("capitalize_first", auto_capitalize);
     crate::config::save_bool("append_space", append_space);
+    crate::config::save_bool("paste_uppercase", paste_uppercase);
     Ok(())
 }
 
@@ -258,6 +265,7 @@ pub async fn transcribe_buffer(
     format: Option<bool>,
     auto_cap: Option<bool>,
     append_space: Option<bool>,
+    paste_uppercase: Option<bool>,
 ) -> Result<String, String> {
     // 30 s @ 16 kHz mono is the largest sensible PTT utterance. Beyond that
     // it's almost certainly an IPC abuse / DoS attempt.
@@ -303,9 +311,11 @@ pub async fn transcribe_buffer(
 		        // Default to true; frontend can override via the next two optional args.
 		        let auto_cap = auto_cap.unwrap_or(true);
 		        let append = append_space.unwrap_or(true);
+		        let uppercase = paste_uppercase.unwrap_or_else(|| crate::config::load_bool("paste_uppercase", false));
 		        let opts = FormatOptions {
 		            auto_capitalize: auto_cap,
 		            append_space: append,
+		            paste_uppercase: uppercase,
 		            dict: pairs,
 		        };
 		        formatter::format_transcript(&raw, &opts)

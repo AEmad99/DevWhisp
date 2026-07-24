@@ -19,6 +19,7 @@ pub struct Settings {
     pub auto_start: bool,
     pub capitalize_first: bool,
     pub append_space: bool,
+    pub paste_uppercase: bool,
     pub dictionary: Vec<DictEntry>,
     pub vad_silence_ms: u32,
 }
@@ -40,6 +41,7 @@ impl Default for Settings {
             auto_start: false,
             capitalize_first: true,
             append_space: false,
+            paste_uppercase: false,
             dictionary: vec![
                 DictEntry { spoken: "next js".into(), replacement: "Next.js".into() },
                 DictEntry { spoken: "typescript".into(), replacement: "TypeScript".into() },

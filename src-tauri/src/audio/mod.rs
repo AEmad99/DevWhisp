@@ -273,7 +273,7 @@ mod tests {
         // formatter integration smoke via hotkey path expectations (VAD source tag etc)
         // (formatter tests are separate; here just call through public)
         let pairs: Vec<(String, String)> = vec![];
-        let fopts = crate::formatter::FormatOptions { auto_capitalize: true, append_space: false, dict: pairs };
+        let fopts = crate::formatter::FormatOptions { auto_capitalize: true, append_space: false, paste_uppercase: false, dict: pairs };
         let formatted = crate::formatter::format_transcript("hello from vad smoke", &fopts);
         assert!(formatted.starts_with("Hello"));
     }
